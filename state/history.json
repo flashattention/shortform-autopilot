@@ -42,5 +42,16 @@
     "status": "sent",
     "created": "2026-11-21",
     "url": "https://github.com/flashattention/shortform-autopilot/releases/download/videos/20261121-capyzombie-loop_satisfying-global.mp4"
+  },
+  {
+    "id": "20261121-capyzombie-kr_relatable-kr",
+    "product": "capyzombie",
+    "format": "kr_relatable",
+    "account": "kr",
+    "hook": "혼자 만든 3D 좀비 게임, 브라우저에서 됨",
+    "clip": null,
+    "status": "sent",
+    "created": "2026-11-21",
+    "url": "https://github.com/flashattention/shortform-autopilot/releases/download/videos/20261121-capyzombie-kr_relatable-kr.mp4"
   }
 ]
