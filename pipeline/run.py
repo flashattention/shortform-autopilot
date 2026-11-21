@@ -28,8 +28,9 @@ def produce(args):
             if src["type"] == "capture":
                 from . import capture
                 trim = float(pc.get("trim_start", 0))
-                raw = capture.capture(src["url"], pc.get("recipe"), spec["duration"] + trim + 2,
-                                      work / "raw.webm", seed=args.seed or 0)
+                raw = capture.capture(pc.get("url") or src["url"], pc.get("recipe"), spec["duration"] + trim + 2,
+                                      work / "raw.mp4", seed=args.seed or 0,
+                                      setup=pc.get("setup"), block=pc.get("block"))
                 sources = [raw]
             elif src["type"] == "before_after":
                 sources = [src["before"], src["after"]]
