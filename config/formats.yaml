@@ -1,0 +1,76 @@
+# 포맷 라이브러리. 근거는 refs/REFERENCES.md 참고.
+# hook_hold: full(영상 내내 훅 표시) | intro(처음 3초만)
+# needs: capture_or_clip(자동 녹화 가능) | clip(직접 찍은 클립 필요)
+
+question_hook:
+  label: 질문형 훅
+  why: 클립 위에 질문, 아래에 행동 유도. 틱톡 인디게임 찜 급증 사례의 공통 공식
+  accounts: [kr, global]
+  duration: [10, 15]
+  hook_hold: full
+  needs: capture_or_clip
+  guide: 훅은 질문 한 문장. 게임이 뭔지 5초 안에 보여야 함
+
+loop_satisfying:
+  label: 무한 루프
+  why: 반복 재생도 조회로 잡혀서 짧고 매끄러운 루프가 유리
+  accounts: [kr, global]
+  duration: [7, 10]
+  hook_hold: intro
+  needs: capture_or_clip
+  guide: 가장 손맛 좋은 순간 하나만. 처음과 끝이 이어지게
+
+devlog_day:
+  label: Day N 개발 일지
+  why: 번호가 붙은 연재는 몰아보기를 만든다. 주 2회 이상 올릴 수 있을 때만
+  accounts: [kr, global]
+  duration: [15, 25]
+  hook_hold: intro
+  needs: capture_or_clip
+  series: true
+  guide: "훅 앞에 'Day N' 을 붙임. 다듬어지지 않은 작업 화면이 광고 같은 영상보다 잘 먹힘"
+
+before_after:
+  label: 비포 애프터
+  why: 같은 장면의 초기 버전과 지금을 하드컷으로 붙임. 가장 큰 변화를 맨 앞에
+  accounts: [kr, global]
+  duration: [10, 15]
+  hook_hold: full
+  needs: clip          # clips/<제품>/before_*.mp4 와 after_*.mp4 가 있어야 함
+  guide: 페이드 없이 바로 컷
+
+bug_blooper:
+  label: 버그·NG 모음
+  why: 웃기거나 이상한 실패 장면은 공유가 잘 됨
+  accounts: [kr, global]
+  duration: [8, 15]
+  hook_hold: intro
+  needs: clip          # clips/<제품>/bug_*.mp4
+  guide: 설명 없이 버그 장면부터
+
+kr_relatable:
+  label: 공감 밈 자막
+  why: 한국 릴스는 큰 자막과 공감 포인트, 댓글 유도가 핵심
+  accounts: [kr]
+  duration: [10, 15]
+  hook_hold: full
+  needs: capture_or_clip
+  guide: 반말 예능 자막 톤. 캡션 끝에 댓글로 답할 질문 하나
+
+quiz_poll:
+  label: 참여형 퀴즈
+  why: 인스타에서 참여형 콘텐츠가 잘 퍼짐. 댓글이 달리면 도달이 늘어남
+  accounts: [kr]
+  duration: [8, 12]
+  hook_hold: full
+  needs: capture_or_clip
+  guide: 훅이 곧 문제. 정답은 댓글로 유도
+
+concept_30s:
+  label: 30초 개념 정리
+  why: 정보성 릴스는 저장이 핵심 지표. 사실 하나, 화면 하나, 결론 하나
+  accounts: [kr]
+  duration: [18, 28]
+  hook_hold: full
+  needs: capture_or_clip
+  guide: 개념 하나만. CTA는 저장 유도

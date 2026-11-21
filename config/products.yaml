@@ -1,0 +1,144 @@
+# 계정·제품 설정. 여기만 고치면 파이프라인 전체가 따라갑니다.
+
+accounts:
+  kr:
+    lang: ko
+    platforms: [instagram, shorts]
+    auto_publish: [instagram]      # 승인하면 API로 자동 게시되는 플랫폼
+  global:
+    lang: en
+    platforms: [tiktok, shorts]
+    auto_publish: []               # 심사 통과 전까지는 파일+캡션만 전달
+
+# 한 번 실행할 때 계정마다 몇 개 만들지
+per_run: {kr: 1, global: 1}
+
+products:
+  dream-runner:
+    name: {ko: 드림 러너, en: Dream Runner}
+    accounts: [kr]
+    url: "https://jelly-city.fly.dev/dream-runner"
+    link_text: {ko: "토스 앱에서 '드림 러너' 검색"}
+    formats: [kr_relatable, question_hook, loop_satisfying, devlog_day, quiz_poll]
+    hooks:
+      ko:
+        - "30초 넘기기 은근 어렵다"
+        - "자기 전에 한 판만 하려다 새벽 됨"
+        - "혼자 만든 게임이 토스에 들어갔다"
+        - "젤리곰이 꿈속에서 도망치는 이유"
+        - "동기 20명이 제일 재밌다고 한 게임"
+    cta: {ko: "토스에서 '드림 러너' 검색"}
+    comment_ask: "몇 초까지 버텼는지 댓글로 알려주세요"
+    hashtags: {ko: [드림러너, 인디게임, 1인개발, 토스미니앱, 러너게임]}
+    capture:
+      trim_start: 3
+      recipe:
+        - {do: tap, x: 0.5, y: 0.6}
+        - {do: wait, ms: 600}
+        - {do: random_taps, count: 4, gap_ms: 450}
+        - {do: swipe, dir: up}
+        - {do: wait, ms: 500}
+
+  jelly-seoul-runner:
+    name: {ko: 젤리 서울 러너, en: Jelly Seoul Runner}
+    accounts: [kr]
+    url: "https://jelly-city.fly.dev/seoul-walk"
+    link_text: {ko: "프로필 링크에서 바로 걷기"}
+    formats: [kr_relatable, quiz_poll, question_hook, devlog_day]
+    hooks:
+      ko:
+        - "여기 어딘지 맞히면 서울 사람"
+        - "서울 25개 구를 통째로 게임에 넣었다"
+        - "건물 55만 채를 넣었더니 생긴 일"
+        - "퇴근하고 서울 산책, 집에서 함"
+        - "장애물도 탈락도 없이 서울을 걷는 게임"
+    cta: {ko: "프로필 링크에서 바로 걷기"}
+    comment_ask: "여기가 어느 동네인지 댓글로 맞혀보세요"
+    hashtags: {ko: [젤리서울러너, 서울, 인디게임, 1인개발, 힐링게임]}
+    capture:
+      trim_start: 6            # 지도 로딩 시간. 첫 실행 영상을 보고 조정
+      recipe:
+        - {do: tap, x: 0.5, y: 0.6}
+        - {do: drag, from: [0.22, 0.8], to: [0.22, 0.68], ms: 2500}   # 왼쪽 아래 조이스틱으로 앞으로 걷기
+        - {do: drag, from: [0.7, 0.45], to: [0.82, 0.45], ms: 700}    # 시점 돌리기
+        - {do: drag, from: [0.22, 0.8], to: [0.22, 0.68], ms: 2500}
+
+  capyzombie:
+    name: {ko: 카피좀비, en: CapyZombie}
+    accounts: [kr, global]
+    url: "https://capyzombie.vercel.app/"
+    link_text: {ko: "프로필 링크에서 무료 플레이", en: "Free in browser, link in bio"}
+    formats: [question_hook, loop_satisfying, bug_blooper, devlog_day, kr_relatable]
+    hooks:
+      ko:
+        - "카피바라 타고 좀비 잡는 게임 실존"
+        - "세상에서 제일 평화로운 동물로 좀비 사냥"
+        - "카피바라는 좀비 앞에서도 침착하다"
+        - "혼자 만든 3D 좀비 게임, 브라우저에서 됨"
+      en:
+        - "POV: you fight zombies riding a capybara"
+        - "Would you survive a zombie apocalypse on a capybara?"
+        - "The calmest animal vs. the undead"
+        - "I made a zombie shooter where your mount is a capybara"
+    cta: {ko: "프로필 링크에서 무료 플레이", en: "Play free in your browser"}
+    comment_ask: "카피바라한테 어떤 무기를 줄까요? 댓글로 알려주세요"
+    hashtags:
+      ko: [카피좀비, 카피바라, 인디게임, 1인개발, 좀비게임]
+      en: [capybara, indiegame, gamedev, zombiegame, indiedev]
+    capture:
+      trim_start: 4
+      recipe:
+        - {do: tap, x: 0.5, y: 0.55}
+        - {do: wait, ms: 800}
+        - {do: drag, from: [0.25, 0.75], to: [0.25, 0.6], ms: 900}
+        - {do: drag, from: [0.7, 0.5], to: [0.85, 0.5], ms: 500}
+        - {do: random_taps, count: 5, gap_ms: 250, area: [0.6, 0.6, 0.95, 0.9]}
+        - {do: drag, from: [0.7, 0.5], to: [0.55, 0.5], ms: 500}
+
+  mouse-father:
+    name: {ko: 쥐 가장, en: "Mouse Father (working title)"}
+    accounts: [global]
+    url: ""                        # 첫 스테이지가 배포되면 주소 입력. 그전엔 clips/mouse-father/ 에 넣은 클립만 사용
+    link_text: {en: "Follow for the demo"}   # 스팀 페이지를 열면 "Wishlist on Steam" 으로 변경
+    formats: [question_hook, devlog_day, before_after, loop_satisfying]
+    hooks:
+      en:
+        - "You're a mouse. Your family is hungry. The cat is awake."
+        - "What would you risk to feed your family?"
+        - "A Zelda-like where the final boss is a house cat"
+        - "Day in the life of a mouse dad"
+        - "Solo dev making a game about the bravest mouse alive"
+    cta: {en: "Follow for the demo"}
+    hashtags: {en: [indiegame, gamedev, indiedev, cozygames, steamgames]}
+    capture:
+      trim_start: 4
+      recipe:
+        - {do: hold_key, key: w, ms: 1200}
+        - {do: hold_key, key: d, ms: 500}
+        - {do: key, key: Space}
+        - {do: hold_key, key: w, ms: 900}
+
+  latent-atlas:
+    name: {ko: Latent Atlas, en: Latent Atlas}
+    accounts: [kr]
+    url: "https://latent-atlas-pied.vercel.app/"
+    link_text: {ko: "프로필 링크에서 무료로 보기"}
+    formats: [concept_30s, quiz_poll, question_hook]
+    hooks:
+      ko:
+        - "어텐션, 3D로 돌려보면 10초 만에 이해됨"
+        - "면접에서 이거 물어보면 그림으로 답하세요"
+        - "글로 읽으면 3시간, 돌려보면 30초"
+        - "딥러닝 개념을 손으로 돌려보는 사이트"
+        - "임베딩이 뭔지 아직도 헷갈린다면"
+    cta: {ko: "저장해두고 면접 전에 다시 보기"}
+    comment_ask: "다음에 보고 싶은 개념을 댓글로 남겨주세요"
+    hashtags: {ko: [딥러닝, 머신러닝, AI공부, 개발자, 취준]}
+    capture:
+      trim_start: 2
+      recipe:
+        - {do: drag, from: [0.3, 0.45], to: [0.7, 0.45], ms: 1400}
+        - {do: wait, ms: 400}
+        - {do: drag, from: [0.6, 0.4], to: [0.4, 0.55], ms: 1200}
+        - {do: scroll, dy: 350}
+        - {do: wait, ms: 900}
