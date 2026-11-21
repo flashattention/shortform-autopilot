@@ -20,5 +20,27 @@
     "status": "queued",
     "created": "2026-11-21",
     "issue": "https://github.com/flashattention/shortform-autopilot/issues/2"
+  },
+  {
+    "id": "20261121-jelly-seoul-runner-kr_relatable-kr",
+    "product": "jelly-seoul-runner",
+    "format": "kr_relatable",
+    "account": "kr",
+    "hook": "장애물도 탈락도 없이 서울을 걷는 게임",
+    "clip": null,
+    "status": "sent",
+    "created": "2026-11-21",
+    "url": "https://github.com/flashattention/shortform-autopilot/releases/download/videos/20261121-jelly-seoul-runner-kr_relatable-kr.mp4"
+  },
+  {
+    "id": "20261121-capyzombie-loop_satisfying-global",
+    "product": "capyzombie",
+    "format": "loop_satisfying",
+    "account": "global",
+    "hook": "POV: you fight zombies riding a capybara",
+    "clip": null,
+    "status": "sent",
+    "created": "2026-11-21",
+    "url": "https://github.com/flashattention/shortform-autopilot/releases/download/videos/20261121-capyzombie-loop_satisfying-global.mp4"
   }
 ]
