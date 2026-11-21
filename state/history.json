@@ -1,1 +1,24 @@
-[]
+[
+  {
+    "id": "20261121-dream-runner-loop_satisfying-kr",
+    "product": "dream-runner",
+    "format": "loop_satisfying",
+    "account": "kr",
+    "hook": "자기 전에 한 판만 하려다 새벽 됨",
+    "clip": null,
+    "status": "queued",
+    "created": "2026-11-21",
+    "issue": "https://github.com/flashattention/shortform-autopilot/issues/1"
+  },
+  {
+    "id": "20261121-capyzombie-question_hook-global",
+    "product": "capyzombie",
+    "format": "question_hook",
+    "account": "global",
+    "hook": "I made a zombie shooter where your mount is a capybara",
+    "clip": null,
+    "status": "queued",
+    "created": "2026-11-21",
+    "issue": "https://github.com/flashattention/shortform-autopilot/issues/2"
+  }
+]
