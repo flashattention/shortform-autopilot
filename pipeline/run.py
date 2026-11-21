@@ -1,14 +1,12 @@
 """실행 진입점.
 
   python -m pipeline.run produce [--account kr|global] [--no-queue] [--seed N]
-  python -m pipeline.run publish --issue N [--reject]
-  python -m pipeline.run metrics
+  python -m pipeline.run record --id 영상ID --views 조회수
 """
 import argparse
 import datetime
 import json
 import sys
-import tempfile
 import traceback
 
 from . import edit, plan
@@ -43,15 +41,10 @@ def produce(args):
             entry = {k: spec[k] for k in ("id", "product", "format", "account", "hook", "clip")}
             entry.update(status="local", created=datetime.date.today().isoformat())
             if not args.no_queue:
-                from . import review
-                entry["issue"] = review.enqueue(spec, video)
-                entry["status"] = "queued"
-                print(f"[produce] 검수 이슈: {entry['issue']}")
-                try:  # 메일이 실패해도 이슈는 이미 만들어졌으니 계속 진행
-                    from . import mailer
-                    mailer.send_video(spec, video, entry["issue"], review.asset_url(spec["id"]))
-                except Exception:
-                    traceback.print_exc()
+                from . import mailer, review
+                url = review.upload(spec, video)
+                sent = mailer.send_video(spec, video, url)
+                entry.update(status="sent" if sent else "made", url=url)
                 history.append(entry)
             ok += 1
         except Exception:
@@ -63,49 +56,17 @@ def produce(args):
         sys.exit(1)
 
 
-def publish(args):
-    from . import instagram, review
-    spec = review.read_issue(args.issue)
+def record(args):
+    """직접 올린 영상의 조회수를 적어 둡니다. 다음 기획에서 잘된 포맷을 더 자주 고릅니다."""
     history = load_state("history.json", [])
-    entry = next((h for h in history if h["id"] == spec["id"]), None)
-    if entry and entry.get("status") in ("published", "rejected"):
-        print("이미 처리된 영상입니다.")
-        return
-    if args.reject:
-        history = [h for h in history if h["id"] != spec["id"]]  # 클립·훅을 다시 쓸 수 있게 기록 삭제
-        save_state("history.json", history)
-        review.comment_and_close(args.issue, "반려했습니다. 이 소재는 다음 기획에 다시 쓸 수 있어요.", "not planned")
-        return
-    lines = []
-    if "instagram" in spec["auto_publish"]:
-        with tempfile.TemporaryDirectory() as d:
-            path = review.download(spec["id"], d)
-            media_id, link = instagram.publish_reel(path, spec["captions"]["instagram"],
-                                                    public_url=review.asset_url(spec["id"]))
-        lines.append(f"- 인스타 릴스 게시 완료: {link or media_id}")
-        if entry:
-            entry["media_id"] = media_id
-    names = {"shorts": "유튜브 쇼츠", "tiktok": "틱톡"}
-    for p in spec["platforms"]:
-        if p not in spec["auto_publish"]:
-            lines.append(f"- [ ] {names.get(p, p)}: 위 영상을 내려받아 직접 올리기 (캡션은 본문에서 복사)")
-    if entry:
-        entry.update(status="published", published=datetime.date.today().isoformat())
-    save_state("history.json", history)
-    review.comment_and_close(args.issue, "\n".join(lines))
-
-
-def metrics(args):
-    from . import instagram
-    history = load_state("history.json", [])
+    h = next((x for x in history if x["id"] == args.id), None)
+    if not h:
+        sys.exit(f"영상 ID를 찾을 수 없습니다: {args.id}")
     data = load_state("metrics.json", {})
-    for h in history:
-        if h.get("media_id"):
-            m = instagram.insights(h["media_id"])
-            data[h["id"]] = {"product": h["product"], "format": h["format"], "hook": h["hook"], **m}
+    data[h["id"]] = {"product": h["product"], "format": h["format"], "hook": h["hook"], "views": args.views}
     save_state("metrics.json", data)
-    for k, v in sorted(data.items(), key=lambda kv: -(kv[1].get("views") or 0)):
-        print(f"{v.get('views')}\t{v['format']}\t{v['hook']}")
+    for k, m in sorted(data.items(), key=lambda kv: -(kv[1].get("views") or 0)):
+        print(f"{m.get('views')}\t{m['format']}\t{m['hook']}")
 
 
 def main():
@@ -113,14 +74,13 @@ def main():
     sub = ap.add_subparsers(dest="cmd", required=True)
     p = sub.add_parser("produce")
     p.add_argument("--account", choices=["kr", "global"])
-    p.add_argument("--no-queue", action="store_true", help="이슈를 만들지 않고 out/ 에만 저장")
+    p.add_argument("--no-queue", action="store_true", help="메일을 보내지 않고 out/ 에만 저장")
     p.add_argument("--seed", type=int)
-    p = sub.add_parser("publish")
-    p.add_argument("--issue", type=int, required=True)
-    p.add_argument("--reject", action="store_true")
-    sub.add_parser("metrics")
+    p = sub.add_parser("record")
+    p.add_argument("--id", required=True)
+    p.add_argument("--views", type=int, required=True)
     args = ap.parse_args()
-    {"produce": produce, "publish": publish, "metrics": metrics}[args.cmd](args)
+    {"produce": produce, "record": record}[args.cmd](args)
 
 
 if __name__ == "__main__":

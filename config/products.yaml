@@ -4,11 +4,9 @@ accounts:
   kr:
     lang: ko
     platforms: [instagram, shorts]
-    auto_publish: [instagram]      # 승인하면 API로 자동 게시되는 플랫폼
   global:
     lang: en
     platforms: [tiktok, shorts]
-    auto_publish: []               # 심사 통과 전까지는 파일+캡션만 전달
 
 # 한 번 실행할 때 계정마다 몇 개 만들지
 per_run: {kr: 1, global: 1}

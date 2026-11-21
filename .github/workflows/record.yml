@@ -1,24 +1,29 @@
-name: 성과 수집
+name: 성과 기록
 on:
-  schedule:
-    - cron: "0 0 * * 0"   # 일요일 09:00 KST
   workflow_dispatch:
+    inputs:
+      id:
+        description: "영상 ID (메일 맨 아래에 있음)"
+        required: true
+      views:
+        description: "조회수"
+        required: true
 permissions:
   contents: write
 concurrency: state
 jobs:
-  metrics:
+  record:
     runs-on: ubuntu-latest
     env:
-      IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
-      IG_API_BASE: ${{ vars.IG_API_BASE }}
+      VIDEO_ID: ${{ inputs.id }}
+      VIEWS: ${{ inputs.views }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with: { python-version: "3.12", cache: pip }
       - run: pip install pyyaml requests pillow
-      - run: python -m pipeline.run metrics
+      - run: python -m pipeline.run record --id "$VIDEO_ID" --views "$VIEWS"
       - run: |
           git config user.name "shortform-autopilot" && git config user.email "actions@users.noreply.github.com"
-          git add state && git commit -m "state: metrics" || exit 0
+          git add state && git commit -m "state: record" || exit 0
           git pull --rebase && git push

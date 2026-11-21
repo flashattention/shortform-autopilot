@@ -167,7 +167,6 @@ def make_specs(seed=None, only_account=None):
                 "id": f"{today}-{pid}-{fmt_id}-{account}",
                 "product": pid, "format": fmt_id, "account": account, "lang": lang,
                 "platforms": cfg["accounts"][account]["platforms"],
-                "auto_publish": cfg["accounts"][account]["auto_publish"],
                 "duration": rng.randint(lo, hi), "hook_hold": fmt["hook_hold"],
                 "source": src, "clip": None, **copy,
             }

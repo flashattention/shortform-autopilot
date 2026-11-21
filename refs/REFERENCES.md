@@ -26,7 +26,6 @@ config/formats.yaml 의 포맷은 아래 자료에서 뽑았습니다. 남의 �
 - 10대는 자주 쓰는 플랫폼 1위가 릴스(37.2%), 선호 콘텐츠 1위가 게임(63.9%).
   https://www.insight.co.kr/news/536791
 
-## 업로드 API 조건
-- 인스타 게시: https://developers.facebook.com/documentation/instagram-platform/content-publishing
+## 업로드 API 조건 (그래서 직접 올립니다)
 - 유튜브: 심사 전 API 프로젝트의 업로드는 비공개 고정. https://developers.google.com/youtube/v3/docs/videos/insert
 - 틱톡: 심사 전 클라이언트의 게시물은 비공개 전용. https://developers.tiktok.com/doc/content-posting-api-reference-direct-post

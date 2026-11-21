@@ -11,7 +11,7 @@ MAX_ATTACH = 20 * 1024 * 1024  # Gmail 첨부 한도 25MB. 인코딩으로 커�
 PLATFORM_KO = {"instagram": "인스타 릴스", "shorts": "유튜브 쇼츠", "tiktok": "틱톡"}
 
 
-def send_video(spec, video_path, issue_url=None, video_url=None):
+def send_video(spec, video_path, video_url=None):
     user = (os.environ.get("MAIL_USERNAME") or "").strip()
     password = "".join(c for c in (os.environ.get("MAIL_PASSWORD") or "") if not c.isspace()).strip("\"'")
     if not user or not password:
@@ -20,23 +20,19 @@ def send_video(spec, video_path, issue_url=None, video_url=None):
     video = pathlib.Path(video_path)
     size = video.stat().st_size
     c = spec["captions"]
-    auto = [PLATFORM_KO[p] for p in spec["auto_publish"]]
-    manual = [PLATFORM_KO[p] for p in spec["platforms"] if p not in spec["auto_publish"]]
+    where = ", ".join(PLATFORM_KO[p] for p in spec["platforms"])
     lines = [
         f"{spec['product']} · {spec['format']} · {spec['duration']}초 · {spec['account']} 계정",
-        "",
+        f"올릴 곳: {where}",
         f"화면 자막: {spec['hook']} / {spec['cta']}",
         "",
     ]
-    if issue_url:
-        lines += [f"승인하기: {issue_url}", "  (이슈에 /approve 댓글을 달면 " +
-                  (", ".join(auto) + "에 자동 게시" if auto else "처리 완료로 표시") + ")", ""]
-    if manual:
-        lines += [f"직접 올릴 곳: {', '.join(manual)} — 첨부 영상을 저장해서 올리세요.", ""]
     if size > MAX_ATTACH:
         lines += [f"영상이 {size / 1e6:.0f}MB라 첨부하지 못했습니다. 여기서 받으세요: {video_url}", ""]
     for p in spec["platforms"]:
         lines += [f"[{PLATFORM_KO[p]} {'제목' if p == 'shorts' else '캡션'}]", c[p], ""]
+    lines += ["---", f"성과 기록용 영상 ID: {spec['id']}",
+              "(Actions → 성과 기록 → Run workflow 에 이 ID와 조회수를 넣으면 다음 기획에 반영됩니다)"]
     msg = EmailMessage()
     msg["Subject"] = f"[숏폼] {spec['hook']}"
     msg["From"] = user
