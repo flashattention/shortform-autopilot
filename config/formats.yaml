@@ -69,7 +69,7 @@ quiz_poll:
 concept_30s:
   label: 30초 개념 정리
   why: 정보성 릴스는 저장이 핵심 지표. 사실 하나, 화면 하나, 결론 하나
-  accounts: [kr]
+  accounts: [kr, global]
   duration: [18, 28]
   hook_hold: full
   needs: capture_or_clip

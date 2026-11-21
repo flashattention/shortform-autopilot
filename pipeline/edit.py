@@ -126,7 +126,8 @@ def render(spec, sources, out_path, trim_start=0.0):
         cmd += ["-f", "lavfi", "-i", "anullsrc=r=44100:cl=stereo"]
         filt.append(f"[{n + 2}:a]anull[a]")
     cmd += ["-filter_complex", ";".join(filt), "-map", "[v]", "-map", "[a]", "-t", str(dur),
-            "-c:v", "libx264", "-preset", "medium", "-crf", "20", "-pix_fmt", "yuv420p",
+            "-c:v", "libx264", "-preset", "medium", "-crf", "22", "-maxrate", "4500k", "-bufsize", "9000k",
+            "-pix_fmt", "yuv420p",  # 28초짜리도 메일 첨부 한도 안에 들어오게 비트레이트를 묶는다
             "-c:a", "aac", "-b:a", "128k", "-movflags", "+faststart", str(out_path)]
     run(cmd)
     return out_path

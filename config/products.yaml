@@ -1,62 +1,82 @@
-# 계정·제품 설정. 여기만 고치면 파이프라인 전체가 따라갑니다.
+# 제품·장면 설정. 여기만 고치면 파이프라인 전체가 따라갑니다.
 
-accounts:
-  kr:
-    lang: ko
-    platforms: [instagram, shorts]
-  global:
-    lang: en
-    platforms: [tiktok, shorts]
+# 언어별 계정과 올릴 곳
+langs:
+  ko: {account: kr, platforms: [instagram, shorts]}
+  en: {account: global, platforms: [tiktok, shorts]}
 
-# 한 번 실행할 때 계정마다 몇 개 만들지
-per_run: {kr: 1, global: 1}
+# 한 번 실행할 때 제품마다 고르는 장면 수. 장면 하나로 한국어 1편 + 영어 1편을 만듭니다 → 제품당 4편
+scenes_per_product: 2
 
 products:
   dream-runner:
     name: {ko: 드림 러너, en: Dream Runner}
-    accounts: [kr]
+    about: {ko: "곰돌이가 꿈속을 달리는 3D 러너. 혼자 만들었고 토스 미니앱과 웹에서 무료", en: "A 3D endless runner where a jelly bear runs through dreams. Solo-made, free in the browser"}
     url: "https://jelly-city.fly.dev/dream-runner"
-    link_text: {ko: "토스 앱에서 '드림 러너' 검색"}
+    link_text: {ko: "토스 앱에서 '드림 러너' 검색", en: "Free in browser, link in bio"}
     formats: [kr_relatable, question_hook, loop_satisfying, devlog_day, quiz_poll]
     hooks:
-      ko:
-        - "30초 넘기기 은근 어렵다"
-        - "자기 전에 한 판만 하려다 새벽 됨"
-        - "혼자 만든 게임이 토스에 들어갔다"
-        - "젤리곰이 꿈속에서 도망치는 이유"
-        - "동기 20명이 제일 재밌다고 한 게임"
-    cta: {ko: "토스에서 '드림 러너' 검색"}
+      ko: ["30초 넘기기 은근 어렵다", "자기 전에 한 판만 하려다 새벽 됨", "혼자 만든 게임이 토스에 들어갔다", "젤리곰이 꿈속에서 도망치는 이유", "동기 20명이 제일 재밌다고 한 게임"]
+      en: ["This dream changes every 20 seconds", "Can you last 30 seconds?", "I made a runner where the whole world swaps mid-run", "One more run turned into 3am"]
+    cta: {ko: "토스에서 '드림 러너' 검색", en: "Play free in your browser"}
     comment_ask: "몇 초까지 버텼는지 댓글로 알려주세요"
-    hashtags: {ko: [드림러너, 인디게임, 1인개발, 토스미니앱, 러너게임]}
+    hashtags:
+      ko: [드림러너, 인디게임, 1인개발, 토스미니앱, 러너게임]
+      en: [indiegame, gamedev, indiedev, endlessrunner, webgame]
     capture:
       trim_start: 3            # 시작 카운트다운
       # 봇 플레이가 운영 서버에 계정·기록·판수 통계를 남기지 않게 막는 요청
       block: ["**/api/login", "**/api/dream/run", "**/api/dream/score", "**/api/dream/played"]
-      setup:                   # 녹화 전에 누르는 버튼
-        - {do: click, sel: "#guest-btn", ms: 1500}
-        - {do: click, sel: "#solo-btn", ms: 1500}
       recipe:
         - {do: click, sel: "#again-btn", if_visible: true, ms: 400}   # 쓰러져서 결과 화면이 뜨면 다시 달리기
         - {do: random_keys, keys: [Space, ArrowLeft, ArrowRight, ArrowDown, Space], count: 4, gap_ms: [200, 700]}
+      scenes:
+        - id: dream
+          desc: {ko: "꿈나라 맵: 하늘에 뜬 발판, 20초마다 꿈이 통째로 바뀜", en: "Dreamland map: floating platforms, the dream changes every 20 seconds"}
+          setup:
+            - {do: click, sel: "#guest-btn", ms: 1500}
+            - {do: click, sel: "#map-pick button[data-m=dream]", ms: 500}
+            - {do: click, sel: "#solo-btn", ms: 1500}
+        - id: hell
+          desc: {ko: "지옥 맵: 용암 위의 길", en: "Hell map: a path over lava"}
+          setup:
+            - {do: click, sel: "#guest-btn", ms: 1500}
+            - {do: click, sel: "#map-pick button[data-m=hell]", ms: 500}
+            - {do: click, sel: "#solo-btn", ms: 1500}
+        - id: void
+          desc: {ko: "이공간 맵: 공간마다 규칙이 하나씩 뒤틀림", en: "Void map: each space bends one rule"}
+          setup:
+            - {do: click, sel: "#guest-btn", ms: 1500}
+            - {do: click, sel: "#map-pick button[data-m=void]", ms: 500}
+            - {do: click, sel: "#solo-btn", ms: 1500}
+        - id: seoul
+          desc: {ko: "서울 코스 맵: 실제 서울 거리에서 차와 행인을 피함", en: "Seoul course map: dodging cars and people on real Seoul streets"}
+          setup:
+            - {do: click, sel: "#guest-btn", ms: 1500}
+            - {do: click, sel: "#map-pick button[data-m=seoul]", ms: 500}
+            - {do: click, sel: "#solo-btn", ms: 1500}
+        - id: time
+          desc: {ko: "모든 것의 역사 맵: 빅뱅부터 시대를 이어 달림", en: "History of Everything map: running through eras from the Big Bang"}
+          setup:
+            - {do: click, sel: "#guest-btn", ms: 1500}
+            - {do: click, sel: "#map-pick button[data-m=time]", ms: 500}
+            - {do: click, sel: "#solo-btn", ms: 1500}
 
   jelly-seoul-runner:
     name: {ko: 젤리 서울 러너, en: Jelly Seoul Runner}
-    accounts: [kr]
+    about: {ko: "장애물도 탈락도 없이 실제 서울 25개 구를 걷는 힐링 오픈월드. 공공데이터로 만든 건물 약 55만 채", en: "A cozy open world where you walk through real Seoul, built from public map data. No obstacles, no game over"}
     url: "https://jelly-city.fly.dev/seoul-walk"
-    link_text: {ko: "프로필 링크에서 바로 걷기"}
+    link_text: {ko: "프로필 링크에서 바로 걷기", en: "Free in browser, link in bio"}
     formats: [kr_relatable, quiz_poll, question_hook, devlog_day]
     hooks:
-      ko:
-        - "여기 어딘지 맞히면 서울 사람"
-        - "서울 25개 구를 통째로 게임에 넣었다"
-        - "건물 55만 채를 넣었더니 생긴 일"
-        - "퇴근하고 서울 산책, 집에서 함"
-        - "장애물도 탈락도 없이 서울을 걷는 게임"
-    cta: {ko: "프로필 링크에서 바로 걷기"}
+      ko: ["여기 어딘지 맞히면 서울 사람", "서울 25개 구를 통째로 게임에 넣었다", "건물 55만 채를 넣었더니 생긴 일", "퇴근하고 서울 산책, 집에서 함", "장애물도 탈락도 없이 서울을 걷는 게임"]
+      en: ["I rebuilt Seoul so you can walk it as a jelly bear", "Guess the Seoul neighborhood", "A walking sim made from real Seoul map data", "No enemies. No timer. Just Seoul."]
+    cta: {ko: "프로필 링크에서 바로 걷기", en: "Walk Seoul free in your browser"}
     comment_ask: "여기가 어느 동네인지 댓글로 맞혀보세요"
-    hashtags: {ko: [젤리서울러너, 서울, 인디게임, 1인개발, 힐링게임]}
+    hashtags:
+      ko: [젤리서울러너, 서울, 인디게임, 1인개발, 힐링게임]
+      en: [seoul, indiegame, cozygames, gamedev, walkingsim]
     capture:
-      url: "https://jelly-city.fly.dev/seoul-walk/play/?r=yeouido&go=start"   # 소개 페이지가 아니라 게임 화면으로 바로. r= 로 동네를 바꿀 수 있음
       trim_start: 1
       block: ["**/api/login", "**/api/dream/hangang/**", "**/api/sw/**"]      # 봇이 걸은 기록·지표를 남기지 않게
       setup:
@@ -66,83 +86,124 @@ products:
         - {do: hold_key, key: d, ms: 350}
         - {do: hold_key, key: w, ms: 2500}
         - {do: hold_key, key: a, ms: 350}
+      scenes:
+        - {id: yeouido, url: "https://jelly-city.fly.dev/seoul-walk/play/?r=yeouido&go=start", desc: {ko: "여의도 한강공원을(를) 곰돌이가 걷는 화면", en: "the bear walking through Yeouido Hangang Park in Seoul"}}
+        - {id: hongdae, url: "https://jelly-city.fly.dev/seoul-walk/play/?r=hongdae&go=start", desc: {ko: "홍대 거리을(를) 곰돌이가 걷는 화면", en: "the bear walking through Hongdae street in Seoul"}}
+        - {id: namsan, url: "https://jelly-city.fly.dev/seoul-walk/play/?r=namsan&go=start", desc: {ko: "남산타워을(를) 곰돌이가 걷는 화면", en: "the bear walking through Namsan Tower in Seoul"}}
+        - {id: itaewon, url: "https://jelly-city.fly.dev/seoul-walk/play/?r=itaewon&go=start", desc: {ko: "이태원 거리을(를) 곰돌이가 걷는 화면", en: "the bear walking through Itaewon in Seoul"}}
+        - {id: banpo, url: "https://jelly-city.fly.dev/seoul-walk/play/?r=banpo&go=start", desc: {ko: "반포 한강을(를) 곰돌이가 걷는 화면", en: "the bear walking through Banpo Hangang in Seoul"}}
+        - {id: ttukseom, url: "https://jelly-city.fly.dev/seoul-walk/play/?r=ttukseom&go=start", desc: {ko: "뚝섬 한강을(를) 곰돌이가 걷는 화면", en: "the bear walking through Ttukseom Hangang in Seoul"}}
+        - {id: seongsu, url: "https://jelly-city.fly.dev/seoul-walk/play/?r=seongsu&go=start", desc: {ko: "성수동 거리을(를) 곰돌이가 걷는 화면", en: "the bear walking through Seongsu-dong in Seoul"}}
+        - {id: gangnam, url: "https://jelly-city.fly.dev/seoul-walk/play/?r=gangnam&go=start", desc: {ko: "강남역을(를) 곰돌이가 걷는 화면", en: "the bear walking through Gangnam Station in Seoul"}}
+        - {id: jamsil, url: "https://jelly-city.fly.dev/seoul-walk/play/?r=jamsil&go=start", desc: {ko: "석촌호수와 잠실을(를) 곰돌이가 걷는 화면", en: "the bear walking through Seokchon Lake and Jamsil in Seoul"}}
+        - {id: myeongdong, url: "https://jelly-city.fly.dev/seoul-walk/play/?r=myeongdong&go=start", desc: {ko: "명동을(를) 곰돌이가 걷는 화면", en: "the bear walking through Myeongdong in Seoul"}}
+        - {id: insadong, url: "https://jelly-city.fly.dev/seoul-walk/play/?r=insadong&go=start", desc: {ko: "인사동을(를) 곰돌이가 걷는 화면", en: "the bear walking through Insadong in Seoul"}}
+        - {id: bukchon, url: "https://jelly-city.fly.dev/seoul-walk/play/?r=bukchon&go=start", desc: {ko: "북촌을(를) 곰돌이가 걷는 화면", en: "the bear walking through Bukchon in Seoul"}}
+        - {id: sinchon, url: "https://jelly-city.fly.dev/seoul-walk/play/?r=sinchon&go=start", desc: {ko: "신촌을(를) 곰돌이가 걷는 화면", en: "the bear walking through Sinchon in Seoul"}}
 
   capyzombie:
     name: {ko: 카피좀비, en: CapyZombie}
-    accounts: [kr, global]
-    url: "https://capyzombie.vercel.app/"
-    link_text: {ko: "프로필 링크에서 무료 플레이", en: "Free in browser, link in bio"}
+    about: {ko: "카피바라를 타고 좀비를 잡는 3D 슈터. 브라우저에서 무료", en: "A 3D shooter where you ride a capybara and fight zombies. Free in the browser"}
+    url: "https://capyzombie.vercel.app/play.html"
+    link_text: {"ko": "프로필 링크에서 무료 플레이", "en": "Free in browser, link in bio"}
     formats: [question_hook, loop_satisfying, bug_blooper, devlog_day, kr_relatable]
     hooks:
-      ko:
-        - "카피바라 타고 좀비 잡는 게임 실존"
-        - "세상에서 제일 평화로운 동물로 좀비 사냥"
-        - "카피바라는 좀비 앞에서도 침착하다"
-        - "혼자 만든 3D 좀비 게임, 브라우저에서 됨"
-      en:
-        - "POV: you fight zombies riding a capybara"
-        - "Would you survive a zombie apocalypse on a capybara?"
-        - "The calmest animal vs. the undead"
-        - "I made a zombie shooter where your mount is a capybara"
-    cta: {ko: "프로필 링크에서 무료 플레이", en: "Play free in your browser"}
+      ko: ["카피바라 타고 좀비 잡는 게임 실존", "세상에서 제일 평화로운 동물로 좀비 사냥", "카피바라는 좀비 앞에서도 침착하다", "혼자 만든 3D 좀비 게임, 브라우저에서 됨"]
+      en: ["POV: you fight zombies riding a capybara", "Would you survive a zombie apocalypse on a capybara?", "The calmest animal vs. the undead", "I made a zombie shooter where your mount is a capybara"]
+    cta: {"ko": "프로필 링크에서 무료 플레이", "en": "Play free in your browser"}
     comment_ask: "카피바라한테 어떤 무기를 줄까요? 댓글로 알려주세요"
     hashtags:
       ko: [카피좀비, 카피바라, 인디게임, 1인개발, 좀비게임]
       en: [capybara, indiegame, gamedev, zombiegame, indiedev]
     capture:
-      trim_start: 4
-      recipe:
-        - {do: tap, x: 0.5, y: 0.55}
-        - {do: wait, ms: 800}
-        - {do: drag, from: [0.25, 0.75], to: [0.25, 0.6], ms: 900}
-        - {do: drag, from: [0.7, 0.5], to: [0.85, 0.5], ms: 500}
-        - {do: random_taps, count: 5, gap_ms: 250, area: [0.6, 0.6, 0.95, 0.9]}
-        - {do: drag, from: [0.7, 0.5], to: [0.55, 0.5], ms: 500}
+      i18n: true               # 브라우저 언어를 따라가는 사이트: 한국어·영어 화면을 따로 찍는다
+      trim_start: 1
+      block: ["**/api/scores**"]   # 봇 점수가 전체 랭킹에 올라가지 않게
+      setup:
+        - {do: click, sel: "#dice", ms: 500}    # 닉네임 추천
+        - {do: click, sel: "#go", ms: 3000}     # 출발!
+      scenes:
+        - id: farm-push
+          desc: {ko: "유자 농장에서 앞으로 나아가며 게틀링을 쏘는 화면", en: "pushing forward and firing the gatling on the farm map"}
+          recipe:
+            - {do: click, sel: "#retry", if_visible: true, ms: 800}
+            - {do: hold_key, key: w, ms: 700}
+            - {do: hold_mouse, ms: 1800, sweep: 0.15}
+            - {do: hold_key, key: d, ms: 400}
+        - id: farm-skills
+          desc: {ko: "유자 농장에서 버티며 발 구르기와 미끼 귤 스킬을 쓰는 화면", en: "holding ground on the farm map using the stomp and decoy skills"}
+          recipe:
+            - {do: click, sel: "#retry", if_visible: true, ms: 800}
+            - {do: hold_mouse, ms: 1500, sweep: 0.2}
+            - {do: key, key: q, ms: 400}
+            - {do: hold_key, key: a, ms: 500}
+            - {do: hold_mouse, ms: 1200, sweep: 0.2}
+            - {do: key, key: e, ms: 400}
 
   mouse-father:
     name: {ko: 쥐 가장, en: "Mouse Father (working title)"}
-    accounts: [global]
-    url: ""                        # 첫 스테이지가 배포되면 주소 입력. 그전엔 clips/mouse-father/ 에 넣은 클립만 사용
-    link_text: {en: "Follow for the demo"}   # 스팀 페이지를 열면 "Wishlist on Steam" 으로 변경
-    formats: [question_hook, devlog_day, before_after, loop_satisfying]
+    about: {ko: "쥐구멍에 사는 쥐 가장이 고양이와 쥐덫을 피해 식구 먹을거리를 구해오는 3D 게임. 개발 중", en: "A 3D game about a mouse dad risking cats and traps to feed his family. In development"}
+    url: ""                    # 화면이 생길 때까지는 clips/mouse-father/ 에 넣은 클립으로만 만들어집니다
+    link_text: {ko: "팔로우하고 데모 소식 받기", en: "Follow for the demo"}   # 스팀 페이지를 열면 "Wishlist on Steam" 으로 변경
+    formats: [question_hook, devlog_day, before_after, loop_satisfying, kr_relatable]
     hooks:
-      en:
-        - "You're a mouse. Your family is hungry. The cat is awake."
-        - "What would you risk to feed your family?"
-        - "A Zelda-like where the final boss is a house cat"
-        - "Day in the life of a mouse dad"
-        - "Solo dev making a game about the bravest mouse alive"
-    cta: {en: "Follow for the demo"}
-    hashtags: {en: [indiegame, gamedev, indiedev, cozygames, steamgames]}
-    capture:
-      trim_start: 4
-      recipe:
-        - {do: hold_key, key: w, ms: 1200}
-        - {do: hold_key, key: d, ms: 500}
-        - {do: key, key: Space}
-        - {do: hold_key, key: w, ms: 900}
+      ko: ["당신은 쥐입니다. 식구는 배고프고 고양이는 깨어 있습니다", "가족을 먹이려고 어디까지 할 수 있나요", "최종 보스가 집고양이인 게임", "쥐 가장의 하루"]
+      en: ["You're a mouse. Your family is hungry. The cat is awake.", "What would you risk to feed your family?", "A Zelda-like where the final boss is a house cat", "Day in the life of a mouse dad", "Solo dev making a game about the bravest mouse alive"]
+    cta: {ko: "팔로우하고 데모 소식 받기", en: "Follow for the demo"}
+    comment_ask: "쥐 가장에게 필요한 무기는 뭘까요? 댓글로 알려주세요"
+    hashtags:
+      ko: [인디게임, 1인개발, 게임개발, 스팀게임, 쥐]
+      en: [indiegame, gamedev, indiedev, cozygames, steamgames]
+    capture: {}
 
   latent-atlas:
     name: {ko: Latent Atlas, en: Latent Atlas}
-    accounts: [kr]
+    about: {ko: "머신러닝·딥러닝·LLM 개념을 돌려볼 수 있는 3D 그림으로 설명하는 무료 학습 사이트", en: "A free site that explains ML, deep learning and LLM concepts with 3D figures you can rotate"}
     url: "https://latent-atlas-pied.vercel.app/"
-    link_text: {ko: "프로필 링크에서 무료로 보기"}
+    link_text: {ko: "프로필 링크에서 무료로 보기", en: "Free, link in bio"}
     formats: [concept_30s, quiz_poll, question_hook]
     hooks:
-      ko:
-        - "어텐션, 3D로 돌려보면 10초 만에 이해됨"
-        - "면접에서 이거 물어보면 그림으로 답하세요"
-        - "글로 읽으면 3시간, 돌려보면 30초"
-        - "딥러닝 개념을 손으로 돌려보는 사이트"
-        - "임베딩이 뭔지 아직도 헷갈린다면"
-    cta: {ko: "저장해두고 면접 전에 다시 보기"}
+      ko: ["어텐션, 3D로 돌려보면 10초 만에 이해됨", "면접에서 이거 물어보면 그림으로 답하세요", "글로 읽으면 3시간, 돌려보면 30초", "딥러닝 개념을 손으로 돌려보는 사이트", "임베딩이 뭔지 아직도 헷갈린다면"]
+      en: ["Attention finally clicked when I could rotate it", "Read it for 3 hours or spin it for 30 seconds", "ML concepts you can turn with your hand", "Still fuzzy on embeddings?"]
+    cta: {ko: "저장해두고 면접 전에 다시 보기", en: "Save this for your next ML interview"}
     comment_ask: "다음에 보고 싶은 개념을 댓글로 남겨주세요"
-    hashtags: {ko: [딥러닝, 머신러닝, AI공부, 개발자, 취준]}
+    hashtags:
+      ko: [딥러닝, 머신러닝, AI공부, 개발자, 취준]
+      en: [machinelearning, deeplearning, llm, aiengineering, learnai]
     capture:
-      trim_start: 2
-      recipe:
-        - {do: drag, from: [0.3, 0.45], to: [0.7, 0.45], ms: 1400}
+      i18n: true
+      trim_start: 0
+      min_moving: 0.25         # 글이 많은 사이트라 화면 변화가 적다. 검수 기준을 낮춤
+      setup:
+        - {do: wait, ms: 2500}
+      recipe:                  # 위쪽 3D 그림을 돌려 보고, 설명을 잠깐 내렸다가 돌아온다
+        - {do: drag, from: [0.3, 0.2], to: [0.7, 0.22], ms: 1600}
         - {do: wait, ms: 400}
-        - {do: drag, from: [0.6, 0.4], to: [0.4, 0.55], ms: 1200}
-        - {do: scroll, dy: 350}
-        - {do: wait, ms: 900}
+        - {do: drag, from: [0.65, 0.18], to: [0.35, 0.26], ms: 1400}
+        - {do: scroll, dy: 260, ms: 1500}
+        - {do: scroll, dy: -260, ms: 600}
+      scenes:
+        - {id: attention, url: "https://latent-atlas-pied.vercel.app/#attention", desc: {ko: "어텐션 메커니즘 (Attention Mechanism) 개념을 3D 그림으로 돌려보는 화면", en: "rotating the 3D figure for Attention Mechanism"}}
+        - {id: transformer, url: "https://latent-atlas-pied.vercel.app/#transformer", desc: {ko: "Transformer 블록 개념을 3D 그림으로 돌려보는 화면", en: "rotating the 3D figure for Transformer Block"}}
+        - {id: embedding, url: "https://latent-atlas-pied.vercel.app/#embedding", desc: {ko: "임베딩 레이어 (Embedding Layer) 개념을 3D 그림으로 돌려보는 화면", en: "rotating the 3D figure for Embedding Layer"}}
+        - {id: backprop, url: "https://latent-atlas-pied.vercel.app/#backprop", desc: {ko: "역전파 (Backpropagation) 개념을 3D 그림으로 돌려보는 화면", en: "rotating the 3D figure for Backpropagation"}}
+        - {id: gd, url: "https://latent-atlas-pied.vercel.app/#gd", desc: {ko: "경사 하강법 (Gradient Descent) 개념을 3D 그림으로 돌려보는 화면", en: "rotating the 3D figure for Gradient Descent"}}
+        - {id: dropout, url: "https://latent-atlas-pied.vercel.app/#dropout", desc: {ko: "드롭아웃 개념을 3D 그림으로 돌려보는 화면", en: "rotating the 3D figure for Dropout"}}
+        - {id: lora, url: "https://latent-atlas-pied.vercel.app/#lora", desc: {ko: "LoRA (저랭크 적응) 개념을 3D 그림으로 돌려보는 화면", en: "rotating the 3D figure for LoRA"}}
+        - {id: rag, url: "https://latent-atlas-pied.vercel.app/#rag", desc: {ko: "검색 증강 생성(Retrieval-Augmented Generation, RAG) 개념을 3D 그림으로 돌려보는 화면", en: "rotating the 3D figure for Retrieval-Augmented Generation (RAG)"}}
+        - {id: kvcache, url: "https://latent-atlas-pied.vercel.app/#kvcache", desc: {ko: "KV 캐시 개념을 3D 그림으로 돌려보는 화면", en: "rotating the 3D figure for KV Cache"}}
+        - {id: softmax, url: "https://latent-atlas-pied.vercel.app/#softmax", desc: {ko: "소프트맥스 (Softmax) 개념을 3D 그림으로 돌려보는 화면", en: "rotating the 3D figure for Softmax"}}
+        - {id: tokenization, url: "https://latent-atlas-pied.vercel.app/#tokenization", desc: {ko: "토큰화 개념을 3D 그림으로 돌려보는 화면", en: "rotating the 3D figure for Tokenization"}}
+        - {id: overfit, url: "https://latent-atlas-pied.vercel.app/#overfit", desc: {ko: "과적합 개념을 3D 그림으로 돌려보는 화면", en: "rotating the 3D figure for Overfitting"}}
+        - {id: batchnorm, url: "https://latent-atlas-pied.vercel.app/#batchnorm", desc: {ko: "배치 정규화 개념을 3D 그림으로 돌려보는 화면", en: "rotating the 3D figure for Batch Normalization"}}
+        - {id: cnn, url: "https://latent-atlas-pied.vercel.app/#cnn", desc: {ko: "합성곱 신경망 (CNN) 개념을 3D 그림으로 돌려보는 화면", en: "rotating the 3D figure for Convolutional Neural Network (CNN)"}}
+        - {id: diffusion, url: "https://latent-atlas-pied.vercel.app/#diffusion", desc: {ko: "디퓨전 모델 (Diffusion Models) 개념을 3D 그림으로 돌려보는 화면", en: "rotating the 3D figure for Diffusion Models"}}
+        - {id: lstm, url: "https://latent-atlas-pied.vercel.app/#lstm", desc: {ko: "LSTM 개념을 3D 그림으로 돌려보는 화면", en: "rotating the 3D figure for LSTM"}}
+        - {id: quantization, url: "https://latent-atlas-pied.vercel.app/#quantization", desc: {ko: "양자화 개념을 3D 그림으로 돌려보는 화면", en: "rotating the 3D figure for Quantization"}}
+        - {id: temperature, url: "https://latent-atlas-pied.vercel.app/#temperature", desc: {ko: "온도(Temperature) 개념을 3D 그림으로 돌려보는 화면", en: "rotating the 3D figure for Temperature"}}
+        - {id: posenc, url: "https://latent-atlas-pied.vercel.app/#posenc", desc: {ko: "위치 인코딩 개념을 3D 그림으로 돌려보는 화면", en: "rotating the 3D figure for Positional Encoding"}}
+        - {id: qkv, url: "https://latent-atlas-pied.vercel.app/#qkv", desc: {ko: "쿼리, 키, 밸류 (Q, K, V) 개념을 3D 그림으로 돌려보는 화면", en: "rotating the 3D figure for Query, Key, Value"}}
+        - {id: residual, url: "https://latent-atlas-pied.vercel.app/#residual", desc: {ko: "잔차 연결 (Residual Connections) 개념을 3D 그림으로 돌려보는 화면", en: "rotating the 3D figure for Residual Connections"}}
+        - {id: beam, url: "https://latent-atlas-pied.vercel.app/#beam", desc: {ko: "빔 서치(Beam Search) 개념을 3D 그림으로 돌려보는 화면", en: "rotating the 3D figure for Beam Search"}}
+        - {id: biasvar, url: "https://latent-atlas-pied.vercel.app/#biasvar", desc: {ko: "편향–분산 트레이드오프 개념을 3D 그림으로 돌려보는 화면", en: "rotating the 3D figure for Bias\u2013Variance Tradeoff"}}
+        - {id: adam, url: "https://latent-atlas-pied.vercel.app/#adam", desc: {ko: "Adam 개념을 3D 그림으로 돌려보는 화면", en: "rotating the 3D figure for Adam"}}

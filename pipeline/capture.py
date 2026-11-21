@@ -70,6 +70,17 @@ def _step(page, s, rng, wait):
             wait(s.get("hold_ms", 120))
             page.keyboard.up(key)
             wait(rng.uniform(*s.get("gap_ms", [200, 700])))
+    elif do == "hold_mouse":  # 마우스 버튼을 누른 채 유지 (연사 등). sweep 이 있으면 누른 채 좌우로 움직인다
+        x, y = _pt(s.get("x", 0.5), s.get("y", 0.5))
+        page.mouse.move(x, y)
+        page.mouse.down()
+        ms, sweep = s.get("ms", 1000), s.get("sweep", 0)
+        steps = max(1, ms // 100)
+        for i in range(steps):
+            if sweep:
+                page.mouse.move(x + int(sweep * W * rng.uniform(-1, 1)), y)
+            wait(ms / steps)
+        page.mouse.up()
     elif do == "scroll":
         page.mouse.wheel(0, s.get("dy", 300))
         wait(s.get("ms", 300))
@@ -77,7 +88,7 @@ def _step(page, s, rng, wait):
         raise ValueError(f"모르는 동작: {do}")
 
 
-def capture(url, recipe, seconds, out_path, seed=0, setup=None, block=None, routes=None):
+def capture(url, recipe, seconds, out_path, seed=0, setup=None, block=None, routes=None, locale=None):
     """url 을 seconds 초(게임 시간) 동안 녹화해 out_path(.mp4)에 저장.
 
     setup: 녹화 전에 실시간으로 실행할 동작(시작 버튼 누르기 등)
@@ -95,6 +106,7 @@ def capture(url, recipe, seconds, out_path, seed=0, setup=None, block=None, rout
         browser = p.chromium.launch(**launch)
         ctx = browser.new_context(
             viewport={"width": W, "height": H}, is_mobile=True, has_touch=False,
+            locale=locale or "ko-KR",   # 사이트가 브라우저 언어를 따라가면 화면도 그 언어로 나온다
             user_agent="Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 "
                        "(KHTML, like Gecko) Chrome/130.0 Mobile Safari/537.36",
         )
