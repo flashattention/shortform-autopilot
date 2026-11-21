@@ -6,7 +6,7 @@
 기획(plan) → 녹화(capture) 또는 직접 찍은 클립 → 편집(edit) → 검수 이슈(review) → 승인 → 게시(publish) → 성과 수집(metrics) → 다음 기획에 반영
 ```
 
-- 월·수·금 18시에 계정마다 영상 1개씩 만들어 GitHub 이슈로 올립니다.
+- 월·수·금 18시에 계정마다 영상 1개씩 만들어 GitHub 이슈로 올리고, 영상을 첨부해 메일로도 보냅니다.
 - 이슈에서 영상을 보고 `approve` 라벨이나 `/approve` 댓글을 달면 인스타에 자동 게시됩니다.
 - 쇼츠·틱톡은 이슈에 영상 링크와 캡션이 준비돼 있으니 내려받아 직접 올립니다. (두 곳 모두 API 심사 전에는 자동 게시물이 비공개로 묶입니다.)
 
@@ -24,6 +24,7 @@
 3. 인스타 계정을 프로페셔널(비즈니스) 계정으로 바꾸고, Meta 개발자 앱에서 `instagram_content_publish` 권한이 있는 토큰을 발급합니다. 절차는 공식 문서를 따르세요: https://developers.facebook.com/documentation/instagram-platform/content-publishing
 4. 레포 Settings → Secrets and variables → Actions 에 등록합니다.
    - Secrets: `IG_USER_ID`, `IG_ACCESS_TOKEN`, (선택) `ANTHROPIC_API_KEY`
+   - 메일로 영상 받기: `MAIL_USERNAME`(보내는 Gmail), `MAIL_PASSWORD`(Google 앱 비밀번호 16자리), `MAIL_TO`(받는 주소) — job-autopilot 과 같은 값
    - Variables(선택): `IG_API_BASE`, `IG_UPLOAD_MODE` — `pipeline/instagram.py` 맨 위 설명 참고
 5. Actions 탭 → "영상 만들기" → Run workflow 로 한 번 돌려 봅니다.
 

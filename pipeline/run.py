@@ -47,6 +47,11 @@ def produce(args):
                 entry["issue"] = review.enqueue(spec, video)
                 entry["status"] = "queued"
                 print(f"[produce] 검수 이슈: {entry['issue']}")
+                try:  # 메일이 실패해도 이슈는 이미 만들어졌으니 계속 진행
+                    from . import mailer
+                    mailer.send_video(spec, video, entry["issue"], review.asset_url(spec["id"]))
+                except Exception:
+                    traceback.print_exc()
                 history.append(entry)
             ok += 1
         except Exception:
