@@ -7,6 +7,7 @@ import argparse
 import datetime
 import json
 import pathlib
+import random
 import sys
 import traceback
 
@@ -34,6 +35,11 @@ def _footage(spec, need, pc, work, seed, cache, strict):
         pre = None
         if strict:
             pre = lambda png: qc.check_frame(png, spec["about"], spec["scene_desc"], spec["must_show"])
+        storage = dict(pc.get("storage") or {}, **(src.get("storage") or {}))
+        for k, (lo, hi) in (src.get("storage_random") or {}).items():   # 장면마다 무작위로 정하는 사이트 설정 (시작 시대 등)
+            storage[k] = str(random.randint(lo, hi))
+        if src.get("storage_random"):
+            print(f"[produce] {key} 무작위 설정: {storage}")
         result = "녹화 실패"
         for attempt in range(2):
             progress.emit("녹화 준비", f"{attempt + 1}번째 시도" if attempt else "게임 여는 중", spec=spec)
@@ -42,7 +48,7 @@ def _footage(spec, need, pc, work, seed, cache, strict):
                                       seed=(seed or 0) + attempt, setup=src.get("setup"), block=pc.get("block"),
                                       locale=src.get("locale"), touch=pc.get("touch"), prepare=pc.get("prepare"),
                                       preflight=pre, adjust=pc.get("adjust"),
-                                      fps=pc.get("fps"), storage=pc.get("storage"),
+                                      fps=pc.get("fps"), storage=storage or None,
                                       on_event=lambda st, d: progress.emit(st, d, spec=spec),
                                       on_frame=lambda n, t: progress.frame(spec, n, t))
             except qc.Unavailable:

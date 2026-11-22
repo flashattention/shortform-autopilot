@@ -64,7 +64,9 @@ products:
             - {do: click, sel: "#map-pick button[data-m=seoul]", ms: 500}
             - {do: click, sel: "#solo-btn", ms: 1500}
         - id: time
-          desc: {ko: "모든 것의 역사 맵: 빅뱅부터 시대를 이어 달림", en: "History of Everything map: running through eras from the Big Bang"}
+          desc: {ko: "모든 것의 역사 맵: 우주·지구·생명·문명의 한 시대를 달림 (화면 위에 시대 이름이 나옴)", en: "History of Everything map: running through one era of the universe, Earth, life or civilization (the era name is shown at the top)"}
+          # 숏폼에서는 늘 빅뱅부터 시작하지 않게, 시작 시대를 125개 중 무작위로 고른다 (게임이 '이어 달리기'에 쓰는 저장값)
+          storage_random: {"dr-time-era": [0, 124]}
           setup:
             - {do: click, sel: "#guest-btn", ms: 1500}
             - {do: click, sel: "#diff-pick button[data-m=normal]", ms: 300}   # 봇이 오래 버티게 가장 느린 난이도

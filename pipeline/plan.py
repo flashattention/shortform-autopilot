@@ -35,7 +35,8 @@ def pick_sources(pid, product, history, n, rng):
     for s in scenes[: max(0, n - len(out))]:
         out.append({"type": "capture", "scene": s["id"], "desc": s["desc"], "clip": None,
                     "url": s.get("url") or cap.get("url") or product["url"], "setup": s.get("setup") or cap.get("setup"),
-                    "recipe": s.get("recipe") or cap.get("recipe")})
+                    "recipe": s.get("recipe") or cap.get("recipe"),
+                    "storage": s.get("storage"), "storage_random": s.get("storage_random")})
     return out
 
 
