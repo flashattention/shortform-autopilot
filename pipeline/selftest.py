@@ -40,7 +40,7 @@ def main():
         clip = ROOT / "selftest" / f"{pid}.mp4"
         print(f"[2] {pid}: 찍기 전 화면 확인")
         png = work / f"{pid}.png"
-        subprocess.run(["ffmpeg", "-y", "-v", "error", "-ss", "1", "-i", str(clip), "-frames:v", "1", str(png)], check=True)
+        subprocess.run(["ffmpeg", "-y", "-v", "error", "-ss", "3", "-i", str(clip), "-frames:v", "1", str(png)], check=True)
         v = step("올바른 화면 → 통과해야 함", lambda: qc.check_frame(png.read_bytes(), product["about"]["ko"],
                                                               scene["desc"]["ko"], cap["must_show"]))
         if v and not v[0]:
