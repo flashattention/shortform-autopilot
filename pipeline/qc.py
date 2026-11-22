@@ -53,33 +53,43 @@ def _key():
     return (os.environ.get("ANTHROPIC_API_KEY") or "").strip()
 
 
-def _ask(content, max_tokens=1024):
-    """Claude에게 묻고 답 글을 받는다. 호출이 안 되거나 답이 비면 Unavailable."""
-    try:
-        r = requests.post(
-            "https://api.anthropic.com/v1/messages",
-            headers={"x-api-key": _key(), "anthropic-version": "2023-06-01", "content-type": "application/json"},
-            json={"model": os.environ.get("QC_MODEL") or os.environ.get("PLANNER_MODEL") or "claude-haiku-5-5",
-                  "max_tokens": max(max_tokens, 1024), "messages": [{"role": "user", "content": content}]},
-            timeout=180,
-        )
-    except requests.RequestException as e:
-        raise Unavailable(f"Claude API 연결 실패: {e}")
-    if r.status_code == 401:
-        raise Unavailable("Claude API 키가 거절됐습니다(401). ANTHROPIC_API_KEY Secret 값을 다시 확인하세요.")
-    if r.status_code >= 400:
-        raise Unavailable(f"Claude API 오류 {r.status_code}: {r.text[:300]}")
-    try:
-        body = r.json()
-        blocks = body.get("content") or []
-        # 응답 맨 앞에 글이 아닌 블록(생각 과정 등)이 올 수 있다. 글 블록만 모아서 읽는다
-        text = "".join(b.get("text", "") for b in blocks if isinstance(b, dict) and b.get("type") == "text")
-    except Exception as e:
-        raise Unavailable(f"Claude 응답을 읽을 수 없음: {e}")
-    if not text.strip():
-        kinds = [b.get("type") for b in blocks if isinstance(b, dict)]
-        raise Unavailable(f"Claude 응답에 글이 없음 (블록 종류 {kinds}, stop_reason {body.get('stop_reason')})")
-    return text
+def _ask(content, max_tokens=16000):
+    """Claude에게 묻고 답 글을 받는다. 호출이 안 되거나 답이 비면 Unavailable.
+
+    이 모델은 답을 쓰기 전에 생각하는 데도 토큰을 쓴다. 한도가 작으면 생각만 하다 끊겨 답이 비거나 잘린다.
+    그래서 한도를 넉넉히 주고, 그래도 한도에서 끊기면 두 배로 한 번 더 묻는다. (쓴 만큼만 과금된다)
+    """
+    limit = max(max_tokens, 16000)
+    for attempt in range(2):
+        try:
+            r = requests.post(
+                "https://api.anthropic.com/v1/messages",
+                headers={"x-api-key": _key(), "anthropic-version": "2023-06-01", "content-type": "application/json"},
+                json={"model": os.environ.get("QC_MODEL") or os.environ.get("PLANNER_MODEL") or "claude-haiku-5-5",
+                      "max_tokens": limit, "messages": [{"role": "user", "content": content}]},
+                timeout=300,
+            )
+        except requests.RequestException as e:
+            raise Unavailable(f"Claude API 연결 실패: {e}")
+        if r.status_code == 401:
+            raise Unavailable("Claude API 키가 거절됐습니다(401). ANTHROPIC_API_KEY Secret 값을 다시 확인하세요.")
+        if r.status_code >= 400:
+            raise Unavailable(f"Claude API 오류 {r.status_code}: {r.text[:300]}")
+        try:
+            body = r.json()
+            blocks = body.get("content") or []
+            # 응답 맨 앞에 글이 아닌 블록(생각 과정 등)이 올 수 있다. 글 블록만 모아서 읽는다
+            text = "".join(b.get("text", "") for b in blocks if isinstance(b, dict) and b.get("type") == "text")
+        except Exception as e:
+            raise Unavailable(f"Claude 응답을 읽을 수 없음: {e}")
+        if body.get("stop_reason") == "max_tokens" and attempt == 0:
+            print(f"[claude] 답이 토큰 한도({limit})에서 끊겨 한도를 늘려 다시 묻습니다")
+            limit *= 2
+            continue
+        if not text.strip() or body.get("stop_reason") == "max_tokens":
+            kinds = [b.get("type") for b in blocks if isinstance(b, dict)]
+            raise Unavailable(f"Claude 답이 비었거나 끊김 (블록 종류 {kinds}, stop_reason {body.get('stop_reason')})")
+        return text
 
 
 VERDICT_FORMAT = """아래 두 줄 형식으로만 답하세요. 다른 말은 쓰지 마세요.

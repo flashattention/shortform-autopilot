@@ -106,7 +106,7 @@ SHORTS: ...
 TIKTOK: ...
 INSTAGRAM:
 (여러 줄 캡션)"""
-    text = qc._ask([qc._img(f) for f in frames] + [{"type": "text", "text": prompt}], max_tokens=1200)
+    text = qc._ask([qc._img(f) for f in frames] + [{"type": "text", "text": prompt}])
     return parse_copy(text)
 
 
