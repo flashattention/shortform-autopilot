@@ -1,0 +1,22 @@
+name: 점검
+# 코드를 올릴 때마다 실제 Claude 키로 검수·문구·완성본 단계를 끝까지 돌려 본다 (1~2분)
+on:
+  push:
+    paths: ["pipeline/**", "config/**", "selftest/**", ".github/workflows/selftest.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  selftest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      PYTHONUNBUFFERED: "1"
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12", cache: pip }
+      - run: sudo apt-get update && sudo apt-get install -y ffmpeg fonts-noto-cjk
+      - run: pip install pyyaml requests pillow
+      - run: python -m pipeline.selftest
