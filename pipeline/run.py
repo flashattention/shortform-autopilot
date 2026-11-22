@@ -46,7 +46,8 @@ def _footage(spec, need, pc, work, seed, cache, strict):
                 result = f"찍기 전 화면 확인 불합격: {e}"
                 continue
             except Exception as e:
-                result = f"녹화 실패: {str(e).splitlines()[0][:200]}"
+                traceback.print_exc()   # 원인을 로그에 남긴다
+                result = f"녹화 실패: {type(e).__name__}: {str(e).splitlines()[0][:200]}"
                 continue
             ok, why, stats = qc.check_footage(raw, start=trim, min_moving=pc.get("min_moving", 0.5))
             print(f"[qc] {key} 화면 검사 {'통과' if ok else '불합격: ' + why} {stats}")

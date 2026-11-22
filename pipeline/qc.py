@@ -52,34 +52,47 @@ def _key():
     return (os.environ.get("ANTHROPIC_API_KEY") or "").strip()
 
 
-def _ask(content, max_tokens=300):
-    """Claude에게 묻고 JSON 을 받는다. 호출이 안 되면 Unavailable."""
+def _ask(content, max_tokens=1024):
+    """Claude에게 묻고 JSON 을 받는다. 호출이 안 되거나 답을 읽을 수 없으면 Unavailable."""
     try:
         r = requests.post(
             "https://api.anthropic.com/v1/messages",
             headers={"x-api-key": _key(), "anthropic-version": "2023-06-01", "content-type": "application/json"},
             json={"model": os.environ.get("QC_MODEL") or os.environ.get("PLANNER_MODEL") or "claude-haiku-5-5",
-                  "max_tokens": max_tokens, "messages": [{"role": "user", "content": content}]},
-            timeout=120,
+                  "max_tokens": max(max_tokens, 1024), "messages": [{"role": "user", "content": content}]},
+            timeout=180,
         )
     except requests.RequestException as e:
         raise Unavailable(f"Claude API 연결 실패: {e}")
     if r.status_code == 401:
         raise Unavailable("Claude API 키가 거절됐습니다(401). ANTHROPIC_API_KEY Secret 값을 다시 확인하세요.")
     if r.status_code >= 400:
-        raise Unavailable(f"Claude API 오류 {r.status_code}: {r.text[:200]}")
-    text = r.json()["content"][0]["text"]
+        raise Unavailable(f"Claude API 오류 {r.status_code}: {r.text[:300]}")
     try:
+        body = r.json()
+        blocks = body.get("content") or []
+        # 응답 맨 앞에 글이 아닌 블록(생각 과정 등)이 올 수 있다. 글 블록만 모아서 읽는다
+        text = "".join(b.get("text", "") for b in blocks if isinstance(b, dict) and b.get("type") == "text")
+        if not text.strip():
+            kinds = [b.get("type") for b in blocks if isinstance(b, dict)]
+            raise ValueError(f"글 블록 없음 (블록 종류 {kinds}, stop_reason {body.get('stop_reason')})")
         return json.loads(text[text.index("{"): text.rindex("}") + 1])
-    except ValueError:
-        raise Unavailable(f"Claude 응답을 읽을 수 없음: {text[:120]}")
+    except Exception as e:
+        raise Unavailable(f"Claude 응답을 읽을 수 없음: {e}")
 
 
 def api_check():
-    """실행을 시작하기 전에 키가 실제로 동작하는지 확인한다."""
+    """실행을 시작하기 전에, 실제 검수와 같은 형태(이미지 + 질문)로 한 번 물어봐서 끝까지 동작하는지 확인한다."""
     if not _key():
         raise Unavailable("ANTHROPIC_API_KEY Secret 이 비어 있습니다.")
-    _ask([{"type": "text", "text": 'JSON만 출력: {"ok": true}'}], max_tokens=20)
+    import io
+    from PIL import Image
+    buf = io.BytesIO()
+    Image.new("RGB", (64, 64), (40, 120, 200)).save(buf, "PNG")
+    d = _ask([_img(buf.getvalue(), "image/png"),
+              {"type": "text", "text": '이 이미지는 한 가지 색으로 채워져 있습니다. JSON만 출력: {"ok": true, "color": "색 이름"}'}])
+    if "ok" not in d:
+        raise Unavailable(f"점검 응답이 예상과 다름: {d}")
 
 
 def _img(data, media="image/jpeg"):
