@@ -11,29 +11,42 @@ MAX_ATTACH = 17 * 1024 * 1024  # Gmail 한도 25MB 는 인코딩 뒤 크기 기�
 PLATFORM_KO = {"instagram": "인스타 릴스", "shorts": "유튜브 쇼츠", "tiktok": "틱톡"}
 
 
-def send_video(spec, video_path, video_url=None):
-    video = pathlib.Path(video_path)
-    size = video.stat().st_size
-    c = spec["captions"]
+def send_versions(spec, versions):
+    """같은 화면에 문구만 다른 영상들을 보낸다. 첨부 한도 안에서 한 메일에 묶고, 넘치면 다음 메일로 나눈다."""
+    lang = "한국어" if spec["lang"] == "ko" else "영어"
     where = ", ".join(PLATFORM_KO[p] for p in spec["platforms"])
-    lines = [
-        f"{spec['product']} · {spec['scene']} · {spec['format']} · {spec['duration']}초 · {spec['account']} 계정",
-        f"올릴 곳: {where}",
-        f"화면 자막: {spec['hook']} / {spec['cta']}",
-        "",
-    ]
-    if size > MAX_ATTACH:
-        lines += [f"영상이 {size / 1e6:.0f}MB라 첨부하지 못했습니다. 여기서 받으세요: {video_url}", ""]
-    for p in spec["platforms"]:
-        lines += [f"[{PLATFORM_KO[p]} {'제목' if p == 'shorts' else '캡션'}]", c[p], ""]
-    lines += ["---", f"성과 기록용 영상 ID: {spec['id']}",
-              "(Actions → 성과 기록 → Run workflow 에 이 ID와 조회수를 넣으면 다음 기획에 반영됩니다)"]
-    msg = EmailMessage()
-    msg["Subject"] = f"[숏폼·{'한국어' if spec['lang'] == 'ko' else '영어'}] {spec['hook']}"
-    msg.set_content("\n".join(lines))
-    if size <= MAX_ATTACH:
-        msg.add_attachment(video.read_bytes(), maintype="video", subtype="mp4", filename=f"{spec['id']}.mp4")
-    return _send(msg, f"{size / 1e6:.1f}MB")
+    groups, cur, size = [], [], 0
+    for i, (ver, video) in enumerate(versions, 1):
+        n = pathlib.Path(video).stat().st_size
+        if cur and size + n > MAX_ATTACH:
+            groups.append(cur)
+            cur, size = [], 0
+        cur.append((i, ver, pathlib.Path(video), n))
+        size += n
+    if cur:
+        groups.append(cur)
+    ok = True
+    for g, group in enumerate(groups, 1):
+        lines = [f"{spec['product']} · {spec['scene']} · {spec['format']} · {spec['duration']}초 · {spec['account']} 계정",
+                 f"올릴 곳: {where}",
+                 f"같은 화면에 문구만 다른 {len(versions)}가지 버전입니다. 마음에 드는 것만 올리세요.", ""]
+        msg = EmailMessage()
+        for i, ver, video, n in group:
+            c = ver["captions"]
+            lines += [f"━━ 문구 {i} ━━  {ver['hook']}  /  {ver['cta']}", ""]
+            for p in spec["platforms"]:
+                lines += [f"[{PLATFORM_KO[p]} {'제목' if p == 'shorts' else '캡션'}]", c[p], ""]
+            lines += [f"성과 기록용 영상 ID: {ver['id']}", ""]
+            if n > MAX_ATTACH:
+                lines += [f"(이 버전은 {n / 1e6:.0f}MB라 첨부하지 못했습니다. 여기서 받으세요: {ver.get('url')})", ""]
+        part = f" ({g}/{len(groups)})" if len(groups) > 1 else ""
+        msg["Subject"] = f"[숏폼·{lang}] {spec['product']} · {spec['scene']}{part} — {group[0][1]['hook']}"
+        msg.set_content("\n".join(lines))
+        for i, ver, video, n in group:
+            if n <= MAX_ATTACH:
+                msg.add_attachment(video.read_bytes(), maintype="video", subtype="mp4", filename=f"문구{i}_{ver['id']}.mp4")
+        ok = _send(msg, f"{sum(x[3] for x in group) / 1e6:.1f}MB, {len(group)}편") and ok
+    return ok
 
 
 def send_summary(sent, failed):

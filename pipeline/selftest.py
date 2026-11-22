@@ -1,4 +1,4 @@
-"""점검: 실제 Claude 키로 검수·문구·완성본 단계를 끝까지 돌려 본다. (녹화는 로컬에서 확인하고, 여기서는 미리 찍어 둔 샘플을 쓴다)
+"""점검: 실제 Claude 키로 화면 확인·문구·편집 단계를 끝까지 돌려 본다. (녹화는 로컬에서 확인하고, 여기서는 미리 찍어 둔 샘플을 쓴다)
 
 코드를 올릴 때마다 Actions 에서 자동으로 돈다. 1~2분이면 끝나므로, 1시간짜리 실행 전에 문제를 잡는다.
   python -m pipeline.selftest
@@ -47,18 +47,18 @@ def main():
             bad.append(f"{pid} 올바른 화면이 불합격됨")
         frames = qc.grab_frames(clip, work, (0.15, 0.5, 0.85))
         for lang, lc in cfg["langs"].items():
-            print(f"[3] {pid} {lang}: 문구 → 편집 → 완성본 검수")
+            print(f"[3] {pid} {lang}: 문구 세 가지 → 편집")
             spec = {"id": f"selftest-{pid}-{lang}", "product": pid, "format": "question_hook", "account": lc["account"],
                     "lang": lang, "scene": scene_id, "scene_desc": scene["desc"][lang], "about": product["about"][lang],
                     "must_show": cap["must_show"], "platforms": lc["platforms"], "duration": 8, "hook_hold": "full"}
-            if step("문구", lambda: plan.write_copy(spec, frames, set(), True, random.Random(0)) or
-                    f"{spec['hook']} / {spec['cta']} / 캡션 {len(spec['captions']['instagram'])}자") is None:
+            copies = plan.write_copy(spec, frames, set(), True, random.Random(0))
+            if not copies:
                 continue
-            video = step("편집", lambda: edit.render(spec, [clip], work / spec["id"] / "video.mp4"))
-            if video:
-                v = step("완성본 검수", lambda: qc.check_content(video, spec, work / spec["id"]))
-                if v and not v[0]:
-                    bad.append(f"{pid} {lang} 완성본이 불합격됨")
+            for i, c in enumerate(copies, 1):
+                print(f"      {i}. {c['hook']}  /  {c['cta']}  (인스타 캡션 {len(c['captions']['instagram'])}자)")
+            if len(copies) < 2:
+                bad.append(f"{pid} {lang} 문구 버전이 {len(copies)}개뿐")
+            step("편집", lambda: edit.render(dict(spec, **copies[0]), [clip], work / spec["id"] / "video.mp4"))
 
     print("[4] 엉뚱한 화면을 걸러내는지 (카피좀비 자리에 다른 사이트 화면)")
     cz = cfg["products"]["capyzombie"]

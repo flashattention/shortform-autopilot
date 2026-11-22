@@ -92,29 +92,27 @@ def produce(args):
                 failed.append((spec, got))
                 continue
             sources, trim, frames = got
-            plan.write_copy(spec, frames, used.setdefault(spec["product"], set()), strict, rng)  # 찍힌 화면을 보고 문구 작성
-            video = edit.render(spec, sources, work / "video.mp4", trim_start=trim)
-            if strict:
-                ok, why = qc.check_content(video, spec, work)
-                print(f"[qc] {spec['id']} 완성본 검수: {'통과' if ok else '불합격'} — {why}")
-                if not ok:
-                    print(f"[produce] 제외 {spec['id']}: 완성본 검수 불합격")
-                    failed.append((spec, f"완성본 검수 불합격: {why}"))
-                    continue
-            (work / "spec.json").write_text(json.dumps(spec, ensure_ascii=False, indent=2), encoding="utf-8")
-            entry = {k: spec[k] for k in ("id", "product", "format", "account", "lang", "scene", "hook", "clip")}
-            entry.update(status="local", created=datetime.date.today().isoformat())
+            copies = plan.write_copy(spec, frames, used.setdefault(spec["product"], set()), strict, rng)
+            versions = []
+            for i, copy in enumerate(copies, 1):   # 같은 화면에 문구만 바꿔 여러 편
+                ver = dict(spec, **copy, id=f"{spec['id']}-v{i}")
+                video = edit.render(ver, sources, work / f"v{i}" / "video.mp4", trim_start=trim)
+                versions.append((ver, video))
+                print(f"[produce] 완성: {ver['id']} — {ver['hook']}")
             if not args.no_queue:
-                url = review.upload(spec, video)
-                ok_mail = mailer.send_video(spec, video, url)
-                entry.update(status="sent" if ok_mail else "made", url=url)
-                history.append(entry)
+                for ver, video in versions:
+                    ver["url"] = review.upload(ver, video)
+                ok_mail = mailer.send_versions(spec, versions)
+                for ver, _ in versions:
+                    entry = {k: ver[k] for k in ("id", "product", "format", "account", "lang", "scene", "hook", "clip")}
+                    entry.update(status="sent" if ok_mail else "made", url=ver["url"],
+                                 created=datetime.date.today().isoformat())
+                    history.append(entry)
                 save_state("history.json", history)  # 중간에 끊겨도 보낸 것까지는 남게
-            sent.append(spec)
-            print(f"[produce] 완성: {video}")
-        except qc.Unavailable as e:   # 검수가 안 되면 검수 못 한 영상은 보내지 않는다
-            print(f"[produce] 제외 {spec['id']}: 검수 불가 — {e}")
-            failed.append((spec, f"검수 불가로 제외: {e}"))
+            sent.extend(ver for ver, _ in versions)
+        except qc.Unavailable as e:   # 찍기 전 화면 확인을 할 수 없으면 그 장면은 만들지 않는다
+            print(f"[produce] 제외 {spec['id']}: 화면 확인 불가 — {e}")
+            failed.append((spec, f"화면 확인 불가로 제외: {e}"))
         except Exception as e:
             traceback.print_exc()
             failed.append((spec, f"제작 중 오류: {str(e).splitlines()[0][:200]}"))

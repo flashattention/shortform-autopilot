@@ -72,12 +72,15 @@ def template_copy(pid, product, lang, history, used, rng):
                          "shorts": f"{hook} | {name} #Shorts"[:100], "tiktok": f"{hook} {tags}"}}
 
 
+VERSIONS = 3
+
+
 def claude_copy(spec, product, fmt, frames, recent, best):
-    """찍힌 화면(frames)을 직접 보고 문구를 쓴다. 화면에 없는 이야기를 못 하게 하기 위함."""
+    """찍힌 화면(frames)을 직접 보고, 같은 화면에 붙일 문구를 서로 다른 방향으로 VERSIONS 가지 쓴다."""
     from . import qc
     lang = spec["lang"]
     ko = lang == "ko"
-    prompt = f"""위 이미지는 숏폼 영상에 실제로 들어갈 화면 3장(시간 순서)입니다. 이 화면에 붙일 문구를 써 주세요.
+    prompt = f"""위 이미지는 숏폼 영상에 실제로 들어갈 화면 3장(시간 순서)입니다. 이 화면에 붙일 문구를 서로 다른 방향으로 {VERSIONS}가지 써 주세요.
 
 제품: {product['name'][lang]} — {product['about'][lang]}
 장면: {spec['scene_desc']}
@@ -89,63 +92,76 @@ def claude_copy(spec, product, fmt, frames, recent, best):
 잘된 영상의 훅: {json.dumps(best, ensure_ascii=False)}
 
 규칙:
-- 먼저 이미지에 실제로 무엇이 보이는지 확인하고, 보이는 것만 말할 것. 화면에 적이 없으면 싸운다고 쓰지 말 것
-- 없는 기능·수치·순위·수상·사용자 수를 지어내지 말 것
-- hook: 화면 위에 크게 들어갈 한 문장. {'한국어 20자 안팎' if ko else 'max 9 words'}. 이 화면에만 맞는 구체적인 내용으로
-- cta: 화면 아래 한 줄. {'한국어 16자 안팎' if ko else 'max 6 words'}
-- instagram: 캡션 2~3줄 + 댓글로 답할 질문 하나 + 해시태그 5개
-- shorts: 검색되는 제목 60자 이내, 끝에 #Shorts
-- tiktok: 한 줄 + 해시태그 4~5개
+- 세 버전은 접근이 달라야 함 (예: 질문형 / 공감·밈 / 담백한 소개). 단어만 바꾼 버전은 안 됨
+- 이미지에 실제로 보이는 것만 말할 것. 없는 기능·수치·순위·수상·사용자 수를 지어내지 말 것
+- HOOK: 화면 위에 크게 들어갈 한 문장. {'한국어 20자 안팎' if ko else 'max 9 words'}
+- CTA: 화면 아래 한 줄. {'한국어 16자 안팎' if ko else 'max 6 words'}
+- SHORTS: 검색되는 제목 60자 이내, 끝에 #Shorts
+- TIKTOK: 한 줄 + 해시태그 4~5개
+- INSTAGRAM: 캡션 2~3줄 + 댓글로 답할 질문 하나 + 해시태그 5개
 - 모든 문구는 {'한국어' if ko else 'English'}로
 
-아래 형식 그대로 답하세요. 각 줄 맨 앞의 영문 이름은 바꾸지 말고, 다른 말은 쓰지 마세요.
-SEEN: 이미지에 보이는 것 한 문장
+아래 형식 그대로 답하세요. 영문 이름과 구분선은 바꾸지 말고, 다른 말은 쓰지 마세요.
+=== 1 ===
 HOOK: ...
 CTA: ...
 SHORTS: ...
 TIKTOK: ...
 INSTAGRAM:
-(여러 줄 캡션)"""
+(여러 줄 캡션)
+=== 2 ===
+(같은 형식)
+=== 3 ===
+(같은 형식)"""
     text = qc._ask([qc._img(f) for f in frames] + [{"type": "text", "text": prompt}])
-    return parse_copy(text)
+    return parse_versions(text)
 
 
-def parse_copy(text):
-    """'HOOK: ...' 같은 줄 형식을 읽는다. 캡션 안에 따옴표나 줄바꿈이 있어도 깨지지 않는다."""
-    from . import qc
+def parse_versions(text):
+    """'=== 1 ===' 로 나뉜 버전들을 읽는다. 일부가 깨져도 읽히는 버전만 쓴다."""
     import re
-    def one(name):
-        m = re.search(rf"^\**{name}\**\s*[:：]\s*(.+)$", text, re.M | re.I)
-        return m.group(1).strip().strip("*").strip() if m else ""
-    m = re.search(r"^\**INSTAGRAM\**\s*[:：]\s*(.*)\Z", text, re.M | re.I | re.S)
-    insta = m.group(1).strip() if m else ""
-    out = {"hook": one("HOOK"), "cta": one("CTA"),
-           "captions": {"instagram": insta, "shorts": one("SHORTS"), "tiktok": one("TIKTOK")}}
-    missing = [k for k, v in (("HOOK", out["hook"]), ("CTA", out["cta"]), ("INSTAGRAM", insta),
-                              ("SHORTS", out["captions"]["shorts"]), ("TIKTOK", out["captions"]["tiktok"])) if not v]
-    if missing:
-        raise qc.Unavailable(f"문구 응답에 빠진 항목 {missing}: {text[:160]!r}")
-    return out
+    from . import qc
+    parts = [p for p in re.split(r"^\s*=+\s*\d+\s*=+\s*$", text, flags=re.M) if p.strip()] or [text]
+    out = []
+    for part in parts:
+        def one(name):
+            m = re.search(rf"^\**{name}\**\s*[:：]\s*(.+)$", part, re.M | re.I)
+            return m.group(1).strip().strip("*").strip() if m else ""
+        m = re.search(r"^\**INSTAGRAM\**\s*[:：]\s*(.*)\Z", part, re.M | re.I | re.S)
+        c = {"hook": one("HOOK"), "cta": one("CTA"),
+             "captions": {"instagram": m.group(1).strip() if m else "", "shorts": one("SHORTS"), "tiktok": one("TIKTOK")}}
+        if c["hook"] and c["cta"] and all(c["captions"].values()):
+            out.append(c)
+    if not out:
+        raise qc.Unavailable(f"문구 응답을 읽을 수 없음: {text[:160]!r}")
+    return out[:VERSIONS]
 
 
 def write_copy(spec, frames, used, use_claude, rng):
-    """원본을 찍은 뒤에 부른다. spec 에 hook·cta·captions 를 채운다."""
+    """원본을 찍은 뒤에 부른다. 같은 화면에 붙일 문구 버전 목록을 돌려준다.
+    Claude 가 문구를 못 쓰면 products.yaml 의 기본 문구로 대신한다 (영상은 그대로 보낸다)."""
+    from . import qc
     cfg, formats = load_yaml("products.yaml"), load_yaml("formats.yaml")
     history, metrics = load_state("history.json", []), load_state("metrics.json", {})
     pid, product, fmt = spec["product"], cfg["products"][spec["product"]], formats[spec["format"]]
+    copies = None
     if use_claude:
-        recent = [h.get("hook") for h in history if h["product"] == pid][-20:] + sorted(used)
+        recent = [h.get("hook") for h in history if h["product"] == pid][-30:] + sorted(used)
         best = [m.get("hook") for m in sorted((m for m in metrics.values() if m.get("views")),
                                                key=lambda m: -m["views"])[:5]]
-        copy = claude_copy(spec, product, fmt, frames, recent, best)
-    else:
-        copy = template_copy(pid, product, spec["lang"], history, used, rng)
-    used.add(copy["hook"])
-    if fmt.get("series"):
-        day = 1 + sum(1 for h in history if h["product"] == pid and h["format"] == spec["format"]
-                      and h["account"] == spec["account"])
-        copy["hook"] = f"Day {day} · {copy['hook']}"
-    spec.update(copy)
+        try:
+            copies = claude_copy(spec, product, fmt, frames, recent, best)
+        except qc.Unavailable as e:
+            print(f"[plan] {spec['id']}: Claude 문구 실패, 기본 문구 사용 — {e}")
+    if not copies:
+        copies = [template_copy(pid, product, spec["lang"], history, used, rng)]
+    for c in copies:
+        used.add(c["hook"])
+        if fmt.get("series"):
+            day = 1 + sum(1 for h in history if h["product"] == pid and h["format"] == spec["format"]
+                          and h["account"] == spec["account"])
+            c["hook"] = f"Day {day} · {c['hook']}"
+    return copies
 
 
 def make_specs(seed=None, only_product=None):

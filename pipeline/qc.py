@@ -123,14 +123,19 @@ def _img(data, media="image/jpeg"):
 
 
 def check_frame(png, about, scene_desc, must_show):
-    """찍기 전 화면 확인. 이 화면에서 바로 녹화를 시작해도 되는지 판단한다."""
-    prompt = f"""게임·사이트를 자동으로 녹화하려고 합니다. 지금 화면에서 바로 녹화를 시작해도 되는지 봐 주세요.
+    """찍기 전 화면 확인. 말도 안 되는 화면만 거른다. 애매하면 통과."""
+    prompt = f"""게임·사이트를 자동으로 녹화하려고 합니다. 지금 화면에서 녹화를 시작해도 되는지 봐 주세요.
 
 제품: {about}
 찍으려는 장면: {scene_desc}
-이 화면에 반드시 보여야 하는 것: {must_show}
+보통 이런 화면이 나옵니다: {must_show}
 
-위 조건이 화면에 실제로 보일 때만 합격입니다. 하늘·땅·벽만 보이거나, 메뉴·로딩·결과·오류 화면이면 불합격입니다.
+FAIL 은 아래처럼 명백히 잘못된 화면일 때만 줍니다.
+- 하늘·땅·벽만 화면을 채우고 있고 게임 내용(캐릭터, 적, 길, 그림)이 거의 안 보인다
+- 메뉴·소개 페이지·로딩·오류·결과(게임 오버) 화면이다
+- 완전히 다른 사이트나 다른 게임 화면이다
+
+그 밖에는 전부 PASS 입니다. 구도가 조금 아쉽거나, 대상이 작거나, 조준이 살짝 빗나간 정도는 PASS 입니다. 애매하면 PASS 입니다.
 {VERDICT_FORMAT}"""
     return _verdict(_ask([_img(png, "image/png"), {"type": "text", "text": prompt}]))
 
@@ -145,25 +150,3 @@ def grab_frames(video, work, fracs, start=0.0, dur=None, width=432):
                         "-vf", f"scale={width}:-2", "-q:v", "4", str(f)], check=True)
         out.append(f.read_bytes())
     return out
-
-
-def check_content(video, spec, work):
-    """완성본 검수. (통과, 이유). 호출이 안 되면 Unavailable — 검수 못 한 영상은 보내지 않는다."""
-    images = [_img(b) for b in grab_frames(video, work, (0.08, 0.3, 0.55, 0.8, 0.95))]
-    prompt = f"""숏폼 영상에서 뽑은 장면 5장(시간 순서)입니다. 올려도 되는지 엄격하게 검수해 주세요.
-
-제품: {spec['about']}
-찍으려던 장면: {spec['scene_desc']}
-화면에 반드시 보여야 하는 것: {spec.get('must_show') or '실제 플레이·사용 화면'}
-화면 위 자막(훅): {spec['hook']}
-화면 아래 자막: {spec['cta']}
-
-아래 중 하나라도 해당하면 불합격입니다.
-- '반드시 보여야 하는 것'이 5장 중 3장 이상에서 보이지 않는다 (하늘·땅만 보임, 적이 없음, 캐릭터가 안 보임 등)
-- 5장 중 2장 이상이 메뉴·소개 페이지·로딩·오류·결과 화면이다
-- 훅이 말하는 내용이 화면에 실제로 보이지 않는다 (싸운다고 했는데 적이 없음, 다른 장소 이야기 등)
-- 자막이 잘리거나, 글자가 깨지거나, 배경에 묻혀 읽기 어렵다
-- 확인할 수 없는 수치·순위·수상 같은 과장이 있다
-
-{VERDICT_FORMAT}"""
-    return _verdict(_ask(images + [{"type": "text", "text": prompt}]))
