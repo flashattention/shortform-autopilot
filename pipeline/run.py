@@ -88,6 +88,7 @@ def produce(args):
             got = _footage(spec, need, pc, OUT / ("_raw_" + (spec["source"].get("key") or spec["id"])),
                            args.seed, cache, strict)
             if isinstance(got, str):
+                print(f"[produce] 제외 {spec['id']}: {got}")
                 failed.append((spec, got))
                 continue
             sources, trim, frames = got
@@ -97,6 +98,7 @@ def produce(args):
                 ok, why = qc.check_content(video, spec, work)
                 print(f"[qc] {spec['id']} 완성본 검수: {'통과' if ok else '불합격'} — {why}")
                 if not ok:
+                    print(f"[produce] 제외 {spec['id']}: 완성본 검수 불합격")
                     failed.append((spec, f"완성본 검수 불합격: {why}"))
                     continue
             (work / "spec.json").write_text(json.dumps(spec, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -111,6 +113,7 @@ def produce(args):
             sent.append(spec)
             print(f"[produce] 완성: {video}")
         except qc.Unavailable as e:   # 검수가 안 되면 검수 못 한 영상은 보내지 않는다
+            print(f"[produce] 제외 {spec['id']}: 검수 불가 — {e}")
             failed.append((spec, f"검수 불가로 제외: {e}"))
         except Exception as e:
             traceback.print_exc()

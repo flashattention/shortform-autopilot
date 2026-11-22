@@ -7,6 +7,7 @@ import base64
 import json
 import os
 import pathlib
+import re
 import subprocess
 
 import requests
@@ -53,7 +54,7 @@ def _key():
 
 
 def _ask(content, max_tokens=1024):
-    """Claude에게 묻고 JSON 을 받는다. 호출이 안 되거나 답을 읽을 수 없으면 Unavailable."""
+    """Claude에게 묻고 답 글을 받는다. 호출이 안 되거나 답이 비면 Unavailable."""
     try:
         r = requests.post(
             "https://api.anthropic.com/v1/messages",
@@ -73,12 +74,26 @@ def _ask(content, max_tokens=1024):
         blocks = body.get("content") or []
         # 응답 맨 앞에 글이 아닌 블록(생각 과정 등)이 올 수 있다. 글 블록만 모아서 읽는다
         text = "".join(b.get("text", "") for b in blocks if isinstance(b, dict) and b.get("type") == "text")
-        if not text.strip():
-            kinds = [b.get("type") for b in blocks if isinstance(b, dict)]
-            raise ValueError(f"글 블록 없음 (블록 종류 {kinds}, stop_reason {body.get('stop_reason')})")
-        return json.loads(text[text.index("{"): text.rindex("}") + 1])
     except Exception as e:
         raise Unavailable(f"Claude 응답을 읽을 수 없음: {e}")
+    if not text.strip():
+        kinds = [b.get("type") for b in blocks if isinstance(b, dict)]
+        raise Unavailable(f"Claude 응답에 글이 없음 (블록 종류 {kinds}, stop_reason {body.get('stop_reason')})")
+    return text
+
+
+VERDICT_FORMAT = """아래 두 줄 형식으로만 답하세요. 다른 말은 쓰지 마세요.
+VERDICT: PASS 또는 FAIL
+REASON: 화면에 무엇이 보이는지 한 문장"""
+
+
+def _verdict(text):
+    """'VERDICT: PASS/FAIL' 과 'REASON: ...' 을 읽는다. JSON 은 답 안의 따옴표 하나로도 깨져서 쓰지 않는다."""
+    m = re.search(r"VERDICT\s*[:：]\s*\**\s*(PASS|FAIL)", text, re.I)
+    if not m:
+        raise Unavailable(f"판정을 읽을 수 없음: {text[:160]!r}")
+    r = re.search(r"REASON\s*[:：]\s*(.+)", text, re.I | re.S)
+    return m.group(1).upper() == "PASS", (r.group(1).strip().splitlines()[0] if r else "")
 
 
 def api_check():
@@ -89,10 +104,8 @@ def api_check():
     from PIL import Image
     buf = io.BytesIO()
     Image.new("RGB", (64, 64), (40, 120, 200)).save(buf, "PNG")
-    d = _ask([_img(buf.getvalue(), "image/png"),
-              {"type": "text", "text": '이 이미지는 한 가지 색으로 채워져 있습니다. JSON만 출력: {"ok": true, "color": "색 이름"}'}])
-    if "ok" not in d:
-        raise Unavailable(f"점검 응답이 예상과 다름: {d}")
+    _verdict(_ask([_img(buf.getvalue(), "image/png"),
+                   {"type": "text", "text": "이 이미지가 한 가지 색으로 채워져 있으면 PASS 입니다.\n" + VERDICT_FORMAT}]))
 
 
 def _img(data, media="image/jpeg"):
@@ -108,9 +121,8 @@ def check_frame(png, about, scene_desc, must_show):
 이 화면에 반드시 보여야 하는 것: {must_show}
 
 위 조건이 화면에 실제로 보일 때만 합격입니다. 하늘·땅·벽만 보이거나, 메뉴·로딩·결과·오류 화면이면 불합격입니다.
-JSON만 출력: {{"ok": true 또는 false, "reason": "화면에 무엇이 보이는지 한 문장"}}"""
-    d = _ask([_img(png, "image/png"), {"type": "text", "text": prompt}])
-    return bool(d.get("ok")), str(d.get("reason", ""))
+{VERDICT_FORMAT}"""
+    return _verdict(_ask([_img(png, "image/png"), {"type": "text", "text": prompt}]))
 
 
 def grab_frames(video, work, fracs, start=0.0, dur=None, width=432):
@@ -143,6 +155,5 @@ def check_content(video, spec, work):
 - 자막이 잘리거나, 글자가 깨지거나, 배경에 묻혀 읽기 어렵다
 - 확인할 수 없는 수치·순위·수상 같은 과장이 있다
 
-JSON만 출력: {{"ok": true 또는 false, "reason": "한 문장"}}"""
-    d = _ask(images + [{"type": "text", "text": prompt}])
-    return bool(d.get("ok")), str(d.get("reason", ""))
+{VERDICT_FORMAT}"""
+    return _verdict(_ask(images + [{"type": "text", "text": prompt}]))

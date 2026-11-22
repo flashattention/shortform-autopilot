@@ -77,7 +77,7 @@ def claude_copy(spec, product, fmt, frames, recent, best):
     from . import qc
     lang = spec["lang"]
     ko = lang == "ko"
-    prompt = f"""위 이미지는 숏폼 영상에 실제로 들어갈 화면 3장(시간 순서)입니다. 이 화면에 붙일 문구를 써 주세요. JSON만 출력합니다.
+    prompt = f"""위 이미지는 숏폼 영상에 실제로 들어갈 화면 3장(시간 순서)입니다. 이 화면에 붙일 문구를 써 주세요.
 
 제품: {product['name'][lang]} — {product['about'][lang]}
 장면: {spec['scene_desc']}
@@ -98,11 +98,34 @@ def claude_copy(spec, product, fmt, frames, recent, best):
 - tiktok: 한 줄 + 해시태그 4~5개
 - 모든 문구는 {'한국어' if ko else 'English'}로
 
-출력 형식: {{"seen": "이미지에 보이는 것 한 문장", "hook": "...", "cta": "...", "captions": {{"instagram": "...", "shorts": "...", "tiktok": "..."}}}}"""
-    data = qc._ask([qc._img(f) for f in frames] + [{"type": "text", "text": prompt}], max_tokens=900)
-    if not (data.get("hook") and data.get("cta") and set(data.get("captions") or {}) >= {"instagram", "shorts", "tiktok"}):
-        raise qc.Unavailable("문구 응답에 빠진 항목이 있음")
-    return {k: data[k] for k in ("hook", "cta", "captions")}
+아래 형식 그대로 답하세요. 각 줄 맨 앞의 영문 이름은 바꾸지 말고, 다른 말은 쓰지 마세요.
+SEEN: 이미지에 보이는 것 한 문장
+HOOK: ...
+CTA: ...
+SHORTS: ...
+TIKTOK: ...
+INSTAGRAM:
+(여러 줄 캡션)"""
+    text = qc._ask([qc._img(f) for f in frames] + [{"type": "text", "text": prompt}], max_tokens=1200)
+    return parse_copy(text)
+
+
+def parse_copy(text):
+    """'HOOK: ...' 같은 줄 형식을 읽는다. 캡션 안에 따옴표나 줄바꿈이 있어도 깨지지 않는다."""
+    from . import qc
+    import re
+    def one(name):
+        m = re.search(rf"^\**{name}\**\s*[:：]\s*(.+)$", text, re.M | re.I)
+        return m.group(1).strip().strip("*").strip() if m else ""
+    m = re.search(r"^\**INSTAGRAM\**\s*[:：]\s*(.*)\Z", text, re.M | re.I | re.S)
+    insta = m.group(1).strip() if m else ""
+    out = {"hook": one("HOOK"), "cta": one("CTA"),
+           "captions": {"instagram": insta, "shorts": one("SHORTS"), "tiktok": one("TIKTOK")}}
+    missing = [k for k, v in (("HOOK", out["hook"]), ("CTA", out["cta"]), ("INSTAGRAM", insta),
+                              ("SHORTS", out["captions"]["shorts"]), ("TIKTOK", out["captions"]["tiktok"])) if not v]
+    if missing:
+        raise qc.Unavailable(f"문구 응답에 빠진 항목 {missing}: {text[:160]!r}")
+    return out
 
 
 def write_copy(spec, frames, used, use_claude, rng):
