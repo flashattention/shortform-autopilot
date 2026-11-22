@@ -68,13 +68,14 @@ python -m pipeline.run produce --no-queue     # out/ 에 영상만 만들기
 
 ## 진행 상황 대시보드 (Vercel)
 
-`dashboard/` 폴더가 대시보드입니다. 제품마다 지금 어느 단계인지(화면 확인, 녹화 몇 장째, 문구, 편집, 메일), 이번 실행에서 보낸 수·제외 수, 최근 기록, 최근 보낸 영상을 5초마다 보여 줍니다.
+`dashboard/` 폴더가 대시보드입니다. 제품마다 지금 어느 단계인지(화면 확인, 녹화 몇 장째, 문구, 편집, 메일), 이번 실행에서 보낸 수·제외 수, 최근 기록, 최근 보낸 영상을 5초마다 보여 줍니다. 위쪽 **전체 실행**(1·3·6번 이어서)과 카드마다 **실행** 버튼으로 바로 돌릴 수 있습니다. 이미 차례를 기다리는 실행이 있으면 새 요청은 받지 않습니다 (GitHub 가 대기 중인 실행을 하나만 남기고 나머지를 취소하기 때문).
 
 1. Vercel → Add New → Project → 이 레포를 가져오고, **Root Directory 를 `dashboard`** 로 정한 뒤 배포합니다. (Framework Preset 은 Other)
 2. 그 프로젝트의 Storage(또는 Marketplace)에서 **Upstash Redis** 를 만들어 연결합니다. 연결하면 `KV_REST_API_URL`, `KV_REST_API_TOKEN` 이 자동으로 들어갑니다. 무료 요금제로 충분합니다.
 3. 프로젝트 Settings → Environment Variables 에 추가합니다.
    - `PROGRESS_SECRET`: 아무도 모르는 긴 문자열 (파이프라인과 똑같이 넣습니다)
-   - `GITHUB_TOKEN`: GitHub 에서 만든 읽기 전용 토큰 (Fine-grained token, 이 레포만, Actions 권한 Read-only). 없으면 GitHub 가 시간당 60번만 허락해서 실행 상태가 금방 안 보이게 됩니다
+   - `GITHUB_TOKEN`: GitHub 에서 만든 토큰 (Fine-grained token, 이 레포만, **Actions 권한 Read and write**). 실행 상태 읽기와 실행 버튼에 씁니다. 없으면 GitHub 가 시간당 60번만 허락해서 실행 상태가 금방 안 보이고, 버튼도 꺼집니다
+   - `DASHBOARD_PASSWORD`: 실행 버튼 비밀번호. 대시보드 주소를 아는 사람 누구나 실행을 걸 수 없게 막습니다
 4. 다시 배포(Redeploy)합니다.
 5. 이 레포 Settings → Secrets and variables → Actions 에 넣습니다.
    - Variables: `DASHBOARD_URL` = 배포된 주소 (예: `https://shortform-dashboard.vercel.app`)

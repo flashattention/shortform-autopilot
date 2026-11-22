@@ -45,3 +45,22 @@ export async function readBody(req) {
   for await (const c of req) chunks.push(c);
   return JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}');
 }
+
+// GitHub API (실행 상태 읽기, 실행 버튼)
+export const REPO = process.env.GITHUB_REPO || 'flashattention/shortform-autopilot';
+export const WORKFLOW = process.env.GITHUB_WORKFLOW_FILE || 'produce.yml';
+const GH_API = (process.env.GITHUB_API || 'https://api.github.com').replace(/\/$/, '');
+
+export async function gh(path, { method = 'GET', body } = {}) {
+  const headers = { Accept: 'application/vnd.github+json', 'User-Agent': 'shortform-dashboard' };
+  if (process.env.GITHUB_TOKEN) headers.Authorization = `Bearer ${process.env.GITHUB_TOKEN}`;
+  if (body) headers['Content-Type'] = 'application/json';
+  const r = await fetch(`${GH_API}/repos/${REPO}/${path}`, { method, headers, body: body && JSON.stringify(body) });
+  if (!r.ok) {
+    const err = new Error(`GitHub ${r.status}`);
+    err.status = r.status;
+    err.detail = (await r.text()).slice(0, 300);
+    throw err;
+  }
+  return r.status === 204 ? null : r.json();
+}

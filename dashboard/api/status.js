@@ -1,20 +1,10 @@
 // 화면이 5초마다 부르는 곳: 저장된 진행 상황 + GitHub Actions 실행 상태를 합쳐 돌려준다.
 // GET /api/status
-import { PREFIX, PRODUCTS, redis, send, storeConfigured } from './_lib.js';
+import { PREFIX, PRODUCTS, REPO, WORKFLOW, gh, redis, send, storeConfigured } from './_lib.js';
 
-const REPO = process.env.GITHUB_REPO || 'flashattention/shortform-autopilot';
-const WORKFLOW = process.env.GITHUB_WORKFLOW_FILE || 'produce.yml';
-const GH_TTL = 15000; // GitHub 는 15초에 한 번만 묻는다 (토큰 없이 시간당 60번 한도)
+const GH_TTL = 15000; // GitHub 는 15초에 한 번만 묻는다
 
 let ghCache = { at: 0, data: null };
-
-async function gh(path) {
-  const headers = { Accept: 'application/vnd.github+json', 'User-Agent': 'shortform-dashboard' };
-  if (process.env.GITHUB_TOKEN) headers.Authorization = `Bearer ${process.env.GITHUB_TOKEN}`;
-  const r = await fetch(`https://api.github.com/repos/${REPO}/${path}`, { headers });
-  if (!r.ok) throw new Error(`GitHub ${r.status}`);
-  return r.json();
-}
 
 async function github() {
   if (ghCache.data && Date.now() - ghCache.at < GH_TTL) return ghCache.data;
@@ -45,7 +35,8 @@ async function github() {
 }
 
 export default async function handler(req, res) {
-  const out = { now: Date.now(), repo: REPO, store: storeConfigured(), products: {}, videos: [] };
+  const out = { now: Date.now(), repo: REPO, store: storeConfigured(), canRun: Boolean(process.env.DASHBOARD_PASSWORD && process.env.GITHUB_TOKEN), products: {}, videos: [] };
+  if (req.query?.fresh || (req.url || '').includes('fresh=1')) ghCache.at = 0;
   const names = { ...PRODUCTS };
   if (out.store) {
     try {
