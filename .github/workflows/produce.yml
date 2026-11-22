@@ -1,6 +1,5 @@
 name: 영상 만들기
-# 아침에 3번, 저녁에 6번 이어서 돈다. 한 번 돌 때 제품들을 동시에(병렬로) 만들고,
-# 끝나면 남은 횟수만큼 자기 자신을 다시 실행한다.
+# 드림 러너 · 카피좀비 · Latent Atlas. 아침에 3번, 저녁에 6번 이어서 돈다.
 on:
   schedule:
     - cron: "17 21 * * *"   # 06:17 KST 아침 — 3번 연속
@@ -11,97 +10,22 @@ on:
         description: "만들 제품"
         type: choice
         default: all
-        options: [all, dream-runner, jelly-seoul-runner, capyzombie, latent-atlas, mouse-father]
+        options: [all, dream-runner, capyzombie, latent-atlas]
       rounds:
         description: "이번을 포함해 몇 번 이어서 돌릴지"
         default: "1"
 permissions:
   contents: write
+  actions: write
 concurrency:
   group: produce
   cancel-in-progress: false
 jobs:
-  setup:
-    runs-on: ubuntu-latest
-    outputs:
-      products: ${{ steps.p.outputs.products }}
-      rounds: ${{ steps.p.outputs.rounds }}
-    env:
-      GH_TOKEN: ${{ github.token }}
-      PRODUCT: ${{ inputs.product }}
-      ROUNDS: ${{ inputs.rounds }}
-      SCHEDULE: ${{ github.event.schedule }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with: { python-version: "3.12", cache: pip }
-      - run: pip install pyyaml requests pillow
-      - id: p
-        name: 만들 제품과 남은 횟수
-        run: |
-          python - <<'PY'
-          import json, os, yaml
-          product = os.environ.get("PRODUCT") or "all"
-          products = [product] if product != "all" else list(yaml.safe_load(open("config/products.yaml"))["products"])
-          schedule = os.environ.get("SCHEDULE") or ""
-          if schedule:
-              rounds = 3 if schedule.startswith("17 21") else 6
-          else:
-              rounds = max(1, int(os.environ.get("ROUNDS") or 1))
-          with open(os.environ["GITHUB_OUTPUT"], "a") as f:
-              f.write(f"products={json.dumps(products)}\nrounds={rounds}\n")
-          print("제품:", products, "| 이번 포함 남은 횟수:", rounds)
-          PY
-      - name: 보관함의 오래된 영상 정리
-        run: python -c "from pipeline import review; review.prune(3)"
-
-  produce:
-    needs: setup
-    runs-on: ubuntu-latest
-    timeout-minutes: 300
-    strategy:
-      fail-fast: false
-      matrix:
-        product: ${{ fromJSON(needs.setup.outputs.products) }}
-    env:
-      GH_TOKEN: ${{ github.token }}
-      PYTHONUNBUFFERED: "1"   # 진행 상황이 로그에 바로 찍히게
-      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-      MAIL_USERNAME: ${{ secrets.MAIL_USERNAME }}
-      MAIL_PASSWORD: ${{ secrets.MAIL_PASSWORD }}
-      MAIL_TO: ${{ secrets.MAIL_TO }}
-      DASHBOARD_URL: ${{ vars.DASHBOARD_URL }}         # 진행 상황을 보낼 대시보드 주소 (없으면 안 보냄)
-      PROGRESS_SECRET: ${{ secrets.PROGRESS_SECRET }}
-      ROUNDS_LEFT: ${{ needs.setup.outputs.rounds }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with: { python-version: "3.12", cache: pip }
-      - run: sudo apt-get update && sudo apt-get install -y ffmpeg fonts-noto-cjk
-      - run: pip install -r requirements.txt && playwright install --with-deps chromium
-      - name: 기획 → 녹화 → 편집 → 메일
-        run: python -m pipeline.run produce --product ${{ matrix.product }}
-      - name: 기록 저장
-        if: always()
-        run: |
-          git config user.name "shortform-autopilot" && git config user.email "actions@users.noreply.github.com"
-          git add state && git commit -m "state: ${{ matrix.product }}" || exit 0
-          # 제품들이 동시에 저장하므로 밀리면 다시 받아서 올린다 (제품마다 기록 파일이 달라 충돌하지 않는다)
-          for i in 1 2 3 4 5; do git pull --rebase && git push && exit 0; sleep $((RANDOM % 10 + 3)); done
-          exit 1
-
-  next:
-    needs: [setup, produce]
-    if: ${{ always() && needs.setup.result == 'success' && fromJSON(needs.setup.outputs.rounds) > 1 }}
-    runs-on: ubuntu-latest
-    permissions:
-      actions: write
-    env:
-      GH_TOKEN: ${{ github.token }}
-    steps:
-      - name: 다음 회차 실행
-        run: |
-          left=$(( ${{ needs.setup.outputs.rounds }} - 1 ))
-          gh workflow run produce.yml -R "${{ github.repository }}" --ref "${{ github.ref_name }}" \
-            -f product="${{ inputs.product || 'all' }}" -f rounds="$left"
-          echo "다음 회차를 실행했습니다. 남은 횟수: $left"
+  run:
+    uses: ./.github/workflows/_produce-core.yml
+    with:
+      group: main
+      product: ${{ inputs.product || 'all' }}
+      rounds: ${{ inputs.rounds || '' }}
+      caller: produce.yml
+    secrets: inherit

@@ -20,3 +20,22 @@ jobs:
       - run: sudo apt-get update && sudo apt-get install -y ffmpeg fonts-noto-cjk
       - run: pip install pyyaml requests pillow
       - run: python -m pipeline.selftest
+
+  bench:
+    # 무거운 게임 녹화 속도를 GitHub 서버에서 직접 잰다 (결과만 출력, 실패로 치지 않음)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      PYTHONUNBUFFERED: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12", cache: pip }
+      - run: sudo apt-get update && sudo apt-get install -y ffmpeg fonts-noto-cjk
+      - run: pip install -r requirements.txt && playwright install --with-deps chromium
+      - name: 크롬
+        run: CHROME_PATH=/usr/bin/google-chrome python -m pipeline.bench
+        continue-on-error: true
+      - name: Playwright 기본 브라우저
+        run: CHROME_PATH= python -m pipeline.bench
+        continue-on-error: true

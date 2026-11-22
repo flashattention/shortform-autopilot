@@ -48,7 +48,10 @@ export async function readBody(req) {
 
 // GitHub API (실행 상태 읽기, 실행 버튼)
 export const REPO = process.env.GITHUB_REPO || 'flashattention/shortform-autopilot';
-export const WORKFLOW = process.env.GITHUB_WORKFLOW_FILE || 'produce.yml';
+// 파이프라인 두 개: 기본(produce.yml)과 무거운 게임(produce-heavy.yml). config/products.yaml 의 group 과 맞춘다
+export const WORKFLOWS = { main: 'produce.yml', heavy: 'produce-heavy.yml' };
+export const HEAVY = ['jelly-seoul-runner', 'mouse-father'];
+export const workflowFor = (product) => (HEAVY.includes(product) ? WORKFLOWS.heavy : WORKFLOWS.main);
 const GH_API = (process.env.GITHUB_API || 'https://api.github.com').replace(/\/$/, '');
 
 export async function gh(path, { method = 'GET', body } = {}) {

@@ -72,11 +72,12 @@ products:
             - {do: click, sel: "#solo-btn", ms: 1500}
 
   jelly-seoul-runner:
+    group: heavy             # 녹화가 아주 오래 걸려서 '영상 만들기 (무거운 게임)' 파이프라인에서 따로 돈다
     name: {ko: 젤리 서울 러너, en: Jelly Seoul Runner}
     about: {ko: "장애물도 탈락도 없이 실제 서울 25개 구를 걷는 힐링 오픈월드. 공공데이터로 만든 건물 약 55만 채", en: "A cozy open world where you walk through real Seoul, built from public map data. No obstacles, no game over"}
     url: "https://jelly-city.fly.dev/seoul-walk"
     link_text: {ko: "프로필 링크에서 바로 걷기", en: "Free in browser, link in bio"}
-    formats: [kr_relatable, quiz_poll, question_hook, devlog_day]
+    formats: [kr_relatable, quiz_poll, question_hook]   # 녹화가 오래 걸려서 짧은 포맷만
     hooks:
       ko: ["여기 어딘지 맞히면 서울 사람", "서울 25개 구를 통째로 게임에 넣었다", "건물 55만 채를 넣었더니 생긴 일", "퇴근하고 서울 산책, 집에서 함", "장애물도 탈락도 없이 서울을 걷는 게임"]
       en: ["I rebuilt Seoul so you can walk it as a jelly bear", "Guess the Seoul neighborhood", "A walking sim made from real Seoul map data", "No enemies. No timer. Just Seoul."]
@@ -86,6 +87,7 @@ products:
       ko: [젤리서울러너, 서울, 인디게임, 1인개발, 힐링게임]
       en: [seoul, indiegame, cozygames, gamedev, walkingsim]
     capture:
+      fps: 15   # 건물이 아주 많아 그래픽카드 없는 서버에서는 한 장 그리는 데 오래 걸린다. 녹화 시간을 줄이려고 초당 15장
       trim_start: 1
       must_show: "곰돌이 캐릭터와 서울의 거리·건물·한강 같은 풍경이 함께 보이는 화면"
       adjust:
@@ -129,7 +131,8 @@ products:
       ko: [카피좀비, 카피바라, 인디게임, 1인개발, 좀비게임]
       en: [capybara, indiegame, gamedev, zombiegame, indiedev]
     capture:
-      url: "https://capyzombie.vercel.app/play.html?diff=easy#play"   # 선택창을 건너뛰고 바로 시작. 봇이 오래 버티게 이지 난이도
+      # unlock: 잠긴 맵도 바로 열기 (게임에 원래 있는 개발용 주소 옵션), diff=easy: 봇이 오래 버티게
+      url: "https://capyzombie.vercel.app/play.html?unlock=1&diff=easy#play"
       i18n: true               # 브라우저 언어를 따라가는 사이트: 한국어·영어 화면을 따로 찍는다
       touch: true              # 터치 조작으로 플레이. 쏘는 동안 가까운 좀비 쪽으로 조준을 끌어 주는 보조가 켜진다
       trim_start: 0
@@ -137,27 +140,60 @@ products:
       must_show: "좀비와 싸우는 전투 화면"
       setup:
         - {do: wait, ms: 4000}
+        # 두 번째 맵부터는 시작할 때 '출전 준비: 강화 N개' 카드를 고른다. 첫 번째 카드를 계속 골라 넘긴다
+        - {do: random_keys, keys: [Digit1], count: 20, hold_ms: 60, gap_ms: [150, 200]}
       prepare:                 # 녹화 전: 좀비가 다가오길 기다렸다가, 쏘면서 천천히 돌아 조준 보조가 좀비를 잡게 한다
         - {do: wait, ms: 5000}
         - {do: touch_hold, ms: 3000, touches: [{from: [0.82, 0.5], to: [0.645, 0.5]}]}
       adjust:                  # 화면 확인에서 떨어지면: 다시 천천히 돌며 좀비를 찾는다 (빨리 돌면 조준 보조가 못 잡는다)
         - {do: click, sel: "#retry", if_visible: true, ms: 1500}
         - {do: touch_hold, ms: 3000, touches: [{from: [0.82, 0.5], to: [0.645, 0.5]}]}
-      scenes:
-        - id: farm-retreat
-          desc: {ko: "유자 농장에서 뒤로 물러나며 다가오는 좀비 떼에 게틀링을 쏘는 화면", en: "backing away while firing the gatling at zombies closing in on the farm map"}
+      scenes:                  # 맵 6개. 가장 오래 안 찍은 맵부터 고른다
+        - id: farm
+          url: "https://capyzombie.vercel.app/play.html?unlock=1&map=farm&diff=easy#play"
+          desc: {ko: "유자 농장 맵에서 뒤로 물러나며 다가오는 좀비 떼에 게틀링을 쏘는 화면", en: "backing away while firing the gatling at zombies closing in on the Yuzu Farm map"}
           recipe:
             - {do: click, sel: "#retry", if_visible: true, ms: 1500}
             - {do: key, key: Digit1, ms: 100}      # 레벨업 카드가 뜨면 첫 번째를 고른다
             - {do: touch_hold, ms: 2500, touches: [{from: [0.25, 0.7], to: [0.25, 0.8]}, {from: [0.82, 0.5], to: [0.675, 0.5]}]}
-        - id: farm-strafe
-          desc: {ko: "유자 농장에서 옆으로 움직이며 좀비 떼에 게틀링을 쏘는 화면", en: "strafing sideways while firing the gatling at zombies on the farm map"}
+        - id: city
+          url: "https://capyzombie.vercel.app/play.html?unlock=1&map=city&diff=easy#play"
+          desc: {ko: "네온 도심 맵에서 옆으로 움직이며 다가오는 좀비 떼에 게틀링을 쏘는 화면", en: "strafing while firing the gatling at zombies closing in on the Neon City map"}
+          recipe:
+            - {do: click, sel: "#retry", if_visible: true, ms: 1500}
+            - {do: key, key: Digit1, ms: 100}
+            - {do: touch_hold, ms: 2500, touches: [{from: [0.25, 0.7], to: [0.33, 0.76]}, {from: [0.82, 0.5], to: [0.675, 0.5]}]}
+        - id: desert
+          url: "https://capyzombie.vercel.app/play.html?unlock=1&map=desert&diff=easy#play"
+          desc: {ko: "사막 유적 맵에서 뒤로 물러나며 다가오는 좀비 떼에 게틀링을 쏘는 화면", en: "backing away while firing the gatling at zombies closing in on the Desert Ruins map"}
+          recipe:
+            - {do: click, sel: "#retry", if_visible: true, ms: 1500}
+            - {do: key, key: Digit1, ms: 100}      # 레벨업 카드가 뜨면 첫 번째를 고른다
+            - {do: touch_hold, ms: 2500, touches: [{from: [0.25, 0.7], to: [0.25, 0.8]}, {from: [0.82, 0.5], to: [0.675, 0.5]}]}
+        - id: candy
+          url: "https://capyzombie.vercel.app/play.html?unlock=1&map=candy&diff=easy#play"
+          desc: {ko: "캔디 놀이공원 맵에서 옆으로 움직이며 다가오는 좀비 떼에 게틀링을 쏘는 화면", en: "strafing while firing the gatling at zombies closing in on the Candy Park map"}
+          recipe:
+            - {do: click, sel: "#retry", if_visible: true, ms: 1500}
+            - {do: key, key: Digit1, ms: 100}
+            - {do: touch_hold, ms: 2500, touches: [{from: [0.25, 0.7], to: [0.33, 0.76]}, {from: [0.82, 0.5], to: [0.675, 0.5]}]}
+        - id: onsen
+          url: "https://capyzombie.vercel.app/play.html?unlock=1&map=onsen&diff=easy#play"
+          desc: {ko: "눈꽃 온천 맵에서 뒤로 물러나며 다가오는 좀비 떼에 게틀링을 쏘는 화면", en: "backing away while firing the gatling at zombies closing in on the Snowy Onsen map"}
+          recipe:
+            - {do: click, sel: "#retry", if_visible: true, ms: 1500}
+            - {do: key, key: Digit1, ms: 100}      # 레벨업 카드가 뜨면 첫 번째를 고른다
+            - {do: touch_hold, ms: 2500, touches: [{from: [0.25, 0.7], to: [0.25, 0.8]}, {from: [0.82, 0.5], to: [0.675, 0.5]}]}
+        - id: grave
+          url: "https://capyzombie.vercel.app/play.html?unlock=1&map=grave&diff=easy#play"
+          desc: {ko: "달빛 묘지 맵에서 옆으로 움직이며 다가오는 좀비 떼에 게틀링을 쏘는 화면", en: "strafing while firing the gatling at zombies closing in on the Moonlit Graves map"}
           recipe:
             - {do: click, sel: "#retry", if_visible: true, ms: 1500}
             - {do: key, key: Digit1, ms: 100}
             - {do: touch_hold, ms: 2500, touches: [{from: [0.25, 0.7], to: [0.33, 0.76]}, {from: [0.82, 0.5], to: [0.675, 0.5]}]}
 
   mouse-father:
+    group: heavy             # 녹화가 아주 오래 걸려서 '영상 만들기 (무거운 게임)' 파이프라인에서 따로 돈다
     name: {ko: 쥐구멍에도 볕 들 날, en: "A Mouse Father's Night"}
     about: {ko: "쥐구멍 속 집에 사는 쥐 가장이 바늘 검과 병뚜껑 방패를 들고 쥐덫·인간의 발·고양이를 넘어 식구 먹을거리를 구해오는 3D 웹 게임. 제1장 플레이 가능", en: "A 3D web game about a mouse dad who takes a needle sword and a bottle-cap shield past traps, human feet and a cat to bring food home. Chapter 1 is playable"}
     url: "https://mouse-father.vercel.app/"

@@ -1,0 +1,29 @@
+name: 영상 만들기 (무거운 게임)
+# 젤리 서울 러너 · 쥐구멍에도 볕 들 날. 녹화가 아주 오래 걸려서 기본 파이프라인과 따로 돈다.
+# 지금은 예약 없이 직접 실행할 때만 돈다. 기본 파이프라인과 동시에 돌 수 있다.
+on:
+  workflow_dispatch:
+    inputs:
+      product:
+        description: "만들 제품"
+        type: choice
+        default: all
+        options: [all, jelly-seoul-runner, mouse-father]
+      rounds:
+        description: "이번을 포함해 몇 번 이어서 돌릴지"
+        default: "1"
+permissions:
+  contents: write
+  actions: write
+concurrency:
+  group: produce-heavy
+  cancel-in-progress: false
+jobs:
+  run:
+    uses: ./.github/workflows/_produce-core.yml
+    with:
+      group: heavy
+      product: ${{ inputs.product || 'all' }}
+      rounds: ${{ inputs.rounds || '' }}
+      caller: produce-heavy.yml
+    secrets: inherit

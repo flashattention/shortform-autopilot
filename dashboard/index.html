@@ -30,6 +30,10 @@
   .meta{color:var(--sub);font-size:13px}
   .sched{margin:10px 0 14px}
   .run{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin-bottom:14px;display:flex;flex-wrap:wrap;gap:6px 22px;align-items:center;font-size:14px}
+  .run{flex-direction:column;align-items:stretch;gap:8px}
+  .runrow{display:flex;flex-wrap:wrap;gap:4px 18px;align-items:center}
+  .runrow .btn{margin-left:auto}
+  .runrow+.runrow{border-top:1px solid var(--line);padding-top:8px}
   .run b{font-weight:600}
   .run a{color:inherit}
   .notice{background:var(--card);border:1px dashed var(--warn);color:var(--warn);border-radius:12px;padding:10px 14px;margin-bottom:12px;font-size:13px}
@@ -160,16 +164,18 @@ function badge(job, last, now, runActive){
 
 function card(id, p, gh, now){
   const last = p.last, job = jobFor(gh, id);
-  const runActive = gh.current && gh.current.status !== 'completed';
+  const heavy = (lastData?.heavy || []).includes(id);
+  const grpRun = (gh.runs || {})[heavy ? 'heavy' : 'main'] || null;
+  const runActive = grpRun && grpRun.status !== 'completed';
   const [cls, label] = badge(job, last, now, runActive);
-  const sameRun = last && gh.current && String(last.run_id) === String(gh.current.id);
+  const sameRun = last && grpRun && String(last.run_id) === String(grpRun.id);
   let stage = '기록 없음', detail = '', pct = null;
   if (last){
     stage = last.stage || '';
     detail = [last.scene && `${last.scene}`, last.lang && (last.lang === 'ko' ? '한국어' : '영어'), last.detail].filter(Boolean).join(' · ');
     if (last.frames) pct = Math.min(100, Math.round(100 * (last.frame || 0) / last.frames));
     else if (last.total && last.done != null) pct = Math.min(100, Math.round(100 * last.done / last.total));
-    if (!sameRun && gh.current) detail = `지난 실행 · ${detail}`;
+    if (!sameRun && grpRun) detail = `지난 실행 · ${detail}`;
   }
   if (job && job.status === 'queued') { stage = '차례를 기다리는 중'; detail = 'GitHub 서버가 배정되면 시작합니다'; pct = null; }
   else if (job && job.status === 'in_progress' && !sameRun) { stage = job.step || '진행 중'; detail = '이번 실행의 세부 진행 상황은 아직 받지 못했어요'; pct = null; }
@@ -177,7 +183,7 @@ function card(id, p, gh, now){
   const running = job && job.status !== 'completed';
   const open = openLogs.has(id) || (wide() && !openLogs.has('!' + id));
   return `<div class="card">
-    <div class="top"><span class="name">${esc(p.name)}</span><span class="badge ${cls}">${esc(label)}</span>
+    <div class="top"><span class="name">${esc(p.name)}${heavy ? ' <small class="meta" title="녹화가 오래 걸려 따로 도는 파이프라인">· 무거운 게임</small>' : ''}</span><span class="badge ${cls}">${esc(label)}</span>
       <button class="btn sm ghost" type="button" data-run="${esc(id)}" ${canRun && !running ? '' : 'disabled'} title="${running ? '이 제품은 지금 만드는 중이에요' : canRun ? '이 제품만 1번 실행' : '실행 버튼 설정이 필요해요'}">실행</button></div>
     <div class="stage">${esc(stage)}</div>
     <div class="detail">${esc(detail)}${last ? ` <span title="${esc(mdhm(last.ts))}">· ${ago(now - last.ts)}</span>` : ''}</div>
@@ -191,11 +197,13 @@ let canRun = false, pending = null;
 function toast(msg){ const t = $('toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toast.h); toast.h = setTimeout(() => t.classList.remove('show'), 4200); }
 function savedPw(){ try { return localStorage.getItem('dash.pw') || ''; } catch { return ''; } }
 function askRun(product, rounds){
-  const name = product === 'all' ? '전체 제품' : (lastData?.products?.[product]?.name || product);
+  const name = product === 'all' ? '기본 파이프라인 전체' : product === 'all-heavy' ? '무거운 게임 둘 다' : (lastData?.products?.[product]?.name || product);
   pending = {product, rounds};
   $('dlgTitle').textContent = `${name} ${rounds}번 실행할까요?`;
   $('dlgText').textContent = product === 'all'
-    ? `다섯 제품을 동시에 만들어요. 한 번에 메일이 20통쯤 와요.${rounds > 1 ? ` 끝나면 이어서 ${rounds - 1}번 더 돌아요.` : ''}`
+    ? `드림 러너 · 카피좀비 · Latent Atlas 를 동시에 만들어요. 한 번에 메일이 12통쯤 와요.${rounds > 1 ? ` 끝나면 이어서 ${rounds - 1}번 더 돌아요.` : ''}`
+    : product === 'all-heavy'
+    ? '젤리 서울 러너와 쥐구멍에도 볕 들 날을 동시에 만들어요. 녹화가 오래 걸려요. 메일이 8통쯤 와요.'
     : '이 제품만 장면 2개 × 한국어·영어로 만들어요. 메일이 4통쯤 와요.';
   $('pw').value = savedPw(); $('dlgErr').textContent = '';
   $('dlg').showModal();
@@ -221,7 +229,7 @@ $('dlgForm').addEventListener('submit', async (e) => {
   finally { $('dlgGo').disabled = false; }
 });
 $('runAll').addEventListener('click', () => askRun('all', +$('rounds').value));
-$('grid').addEventListener('click', (e) => { const b = e.target.closest('[data-run]'); if (b && !b.disabled) askRun(b.dataset.run, 1); });
+for (const host of ['grid', 'run']) $(host).addEventListener('click', (e) => { const b = e.target.closest('[data-run]'); if (b && !b.disabled) askRun(b.dataset.run, 1); });
 $('grid').addEventListener('toggle', (e) => {
   const d = e.target; if (!d.dataset || !d.dataset.log) return;
   const id = d.dataset.log;
@@ -248,18 +256,22 @@ async function tick(fresh){
   if (!d.store) notes.push('진행 상황 저장소(Upstash Redis)가 아직 연결되지 않아 GitHub 실행 상태만 보입니다. README 의 대시보드 설정을 확인하세요.');
   if (d.storeError) notes.push('저장소 오류: ' + d.storeError);
   if (gh.ok === false) notes.push('GitHub 상태를 못 읽었습니다: ' + gh.error);
-  const active = gh.current && gh.current.status !== 'completed';
+  const active = gh.runs?.main && gh.runs.main.status !== 'completed';
   $('runAll').disabled = !canRun || active;
   $('runAll').title = !canRun ? '실행 버튼을 쓰려면 Vercel 에 DASHBOARD_PASSWORD 와 GITHUB_TOKEN 을 넣어 주세요' : active ? '지금 실행 중이에요. 끝나면 누를 수 있어요' : '';
   $('notice').innerHTML = notes.map((x) => `<div class="notice">${esc(x)}</div>`).join('');
-  const c = gh.current;
-  if (c){
-    const st = active ? (JOB_KO[c.status] || c.status) : (CONC_KO[c.conclusion] || c.conclusion);
-    $('run').innerHTML = `<span><b>${active ? '지금 실행' : '마지막 실행'}</b> · <span class="${active?'s-run':c.conclusion==='success'?'s-ok':'s-bad'}">${esc(st)}</span></span>
+  const runs = gh.runs || {};
+  const rowFor = (label, c, group) => {
+    if (!c) return `<div class="runrow"><b>${label}</b> · <span class="meta">실행 기록 없음</span>${group === 'heavy' ? heavyBtn(false) : ''}</div>`;
+    const act = c.status !== 'completed';
+    const st = act ? (JOB_KO[c.status] || c.status) : (CONC_KO[c.conclusion] || c.conclusion);
+    return `<div class="runrow"><span><b>${label}</b> · <span class="${act?'s-run':c.conclusion==='success'?'s-ok':'s-bad'}">${esc(st)}</span></span>
       <span>${esc(EVENT_KO[c.event] || c.event)} · ${mdhm(c.created_at)} 시작</span>
-      <span>${active ? '경과 ' + ago(now - Date.parse(c.created_at)).replace(' 전','') : '끝난 지 ' + ago(now - Date.parse(c.updated_at))}</span>
-      <a href="${esc(c.url)}" target="_blank" rel="noopener">GitHub에서 보기</a>`;
-  } else $('run').innerHTML = '<span>실행 기록이 없습니다</span>';
+      <span>${act ? '경과 ' + ago(now - Date.parse(c.created_at)).replace(' 전','') : '끝난 지 ' + ago(now - Date.parse(c.updated_at))}</span>
+      <a href="${esc(c.url)}" target="_blank" rel="noopener">GitHub</a>${group === 'heavy' ? heavyBtn(act) : ''}</div>`;
+  };
+  const heavyBtn = (act) => `<button class="btn sm ghost" type="button" data-run="all-heavy" ${canRun && !act ? '' : 'disabled'}>둘 다 실행</button>`;
+  $('run').innerHTML = rowFor('기본 파이프라인', runs.main, 'main') + rowFor('무거운 게임', runs.heavy, 'heavy');
   $('grid').innerHTML = Object.entries(d.products).map(([id, p]) => card(id, p, gh, now)).join('');
   $('videos').innerHTML = (d.videos || []).length ? d.videos.map((v) => `<div><time>${mdhm(v.ts)}</time><span class="p">${esc(d.products[v.product]?.name || v.product)} · ${v.lang==='ko'?'한국어':'영어'}</span><span>${esc(v.hook)}</span></div>`).join('') : '<div class="empty">아직 없습니다</div>';
   $('fresh').textContent = '방금 갱신';

@@ -1,0 +1,115 @@
+name: 영상 만들기 (공통)
+# produce.yml(기본)과 produce-heavy.yml(무거운 게임)이 불러 쓰는 본체.
+# 한 번 돌 때 제품들을 동시에(병렬로) 만들고, 끝나면 남은 횟수만큼 부른 워크플로우를 다시 실행한다.
+on:
+  workflow_call:
+    inputs:
+      group:
+        description: "products.yaml 의 group (main 또는 heavy)"
+        type: string
+        required: true
+      product:
+        type: string
+        default: all
+      rounds:
+        type: string
+        default: ""
+      caller:
+        description: "다음 회차를 실행할 워크플로우 파일"
+        type: string
+        required: true
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    outputs:
+      products: ${{ steps.p.outputs.products }}
+      rounds: ${{ steps.p.outputs.rounds }}
+    env:
+      GH_TOKEN: ${{ github.token }}
+      PRODUCT: ${{ inputs.product }}
+      ROUNDS: ${{ inputs.rounds }}
+      GROUP: ${{ inputs.group }}
+      SCHEDULE: ${{ github.event.schedule }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12", cache: pip }
+      - run: pip install pyyaml requests pillow
+      - id: p
+        name: 만들 제품과 남은 횟수
+        run: |
+          python - <<'PY'
+          import json, os, yaml
+          product = os.environ.get("PRODUCT") or "all"
+          group = os.environ.get("GROUP") or "main"
+          conf = yaml.safe_load(open("config/products.yaml"))["products"]
+          products = [product] if product != "all" else [p for p, v in conf.items() if v.get("group", "main") == group]
+          schedule = os.environ.get("SCHEDULE") or ""
+          if schedule:
+              rounds = 3 if schedule.startswith("17 21") else 6
+          else:
+              rounds = max(1, int(os.environ.get("ROUNDS") or 1))
+          with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+              f.write(f"products={json.dumps(products)}\nrounds={rounds}\n")
+          print("제품:", products, "| 이번 포함 남은 횟수:", rounds)
+          PY
+      - name: 보관함의 오래된 영상 정리
+        run: python -c "from pipeline import review; review.prune(3)"
+
+  produce:
+    needs: setup
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    strategy:
+      fail-fast: false
+      matrix:
+        product: ${{ fromJSON(needs.setup.outputs.products) }}
+    env:
+      GH_TOKEN: ${{ github.token }}
+      PYTHONUNBUFFERED: "1"   # 진행 상황이 로그에 바로 찍히게
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      MAIL_USERNAME: ${{ secrets.MAIL_USERNAME }}
+      MAIL_PASSWORD: ${{ secrets.MAIL_PASSWORD }}
+      MAIL_TO: ${{ secrets.MAIL_TO }}
+      DASHBOARD_URL: ${{ vars.DASHBOARD_URL }}         # 진행 상황을 보낼 대시보드 주소 (없으면 안 보냄)
+      PROGRESS_SECRET: ${{ secrets.PROGRESS_SECRET }}
+      ROUNDS_LEFT: ${{ needs.setup.outputs.rounds }}
+      # GitHub 서버에 깔려 있는 크롬을 쓴다 (로컬에서 시험한 것과 같은 브라우저).
+      # Playwright 기본 브라우저는 무거운 3D 게임에서 한 장 찍는 데 3분을 넘겨 실패했다
+      CHROME_PATH: /usr/bin/google-chrome
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12", cache: pip }
+      - run: sudo apt-get update && sudo apt-get install -y ffmpeg fonts-noto-cjk
+      - run: pip install -r requirements.txt && playwright install --with-deps chromium
+      - name: 크롬 확인
+        run: |
+          if [ -x /usr/bin/google-chrome ]; then /usr/bin/google-chrome --version
+          else echo "::warning::크롬이 없어 Playwright 기본 브라우저를 씁니다"; echo "CHROME_PATH=" >> "$GITHUB_ENV"; fi
+      - name: 기획 → 녹화 → 편집 → 메일
+        run: python -m pipeline.run produce --product ${{ matrix.product }}
+      - name: 기록 저장
+        if: always()
+        run: |
+          git config user.name "shortform-autopilot" && git config user.email "actions@users.noreply.github.com"
+          git add state && git commit -m "state: ${{ matrix.product }}" || exit 0
+          # 제품들이 동시에 저장하므로 밀리면 다시 받아서 올린다 (제품마다 기록 파일이 달라 충돌하지 않는다)
+          for i in 1 2 3 4 5; do git pull --rebase && git push && exit 0; sleep $((RANDOM % 10 + 3)); done
+          exit 1
+
+  next:
+    needs: [setup, produce]
+    if: ${{ always() && needs.setup.result == 'success' && fromJSON(needs.setup.outputs.rounds) > 1 }}
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: 다음 회차 실행
+        run: |
+          left=$(( ${{ needs.setup.outputs.rounds }} - 1 ))
+          gh workflow run "${{ inputs.caller }}" -R "${{ github.repository }}" --ref "${{ github.ref_name }}" \
+            -f product="${{ inputs.product || 'all' }}" -f rounds="$left"
+          echo "다음 회차를 실행했습니다. 남은 횟수: $left"

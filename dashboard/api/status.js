@@ -1,32 +1,40 @@
 // 화면이 5초마다 부르는 곳: 저장된 진행 상황 + GitHub Actions 실행 상태를 합쳐 돌려준다.
 // GET /api/status
-import { PREFIX, PRODUCTS, REPO, WORKFLOW, gh, redis, send, storeConfigured } from './_lib.js';
+import { HEAVY, PREFIX, PRODUCTS, REPO, WORKFLOWS, gh, redis, send, storeConfigured } from './_lib.js';
 
 const GH_TTL = 15000; // GitHub 는 15초에 한 번만 묻는다
 
 let ghCache = { at: 0, data: null };
 
+const slim = (r, group) => r && {
+  id: r.id, status: r.status, conclusion: r.conclusion, event: r.event, group,
+  created_at: r.created_at, updated_at: r.updated_at, url: r.html_url, title: r.display_title,
+};
+
 async function github() {
   if (ghCache.data && Date.now() - ghCache.at < GH_TTL) return ghCache.data;
   try {
-    const runs = (await gh(`actions/workflows/${WORKFLOW}/runs?per_page=6`)).workflow_runs || [];
-    const pick = runs.find((r) => r.status !== 'completed') || runs[0];
-    let jobs = [];
-    if (pick) jobs = (await gh(`actions/runs/${pick.id}/jobs?per_page=30`)).jobs || [];
-    const slim = (r) => r && {
-      id: r.id, status: r.status, conclusion: r.conclusion, event: r.event,
-      created_at: r.created_at, updated_at: r.updated_at, url: r.html_url, title: r.display_title,
-    };
-    const data = {
-      ok: true,
-      current: slim(pick),
-      recent: runs.map(slim),
-      jobs: jobs.map((j) => ({
-        name: j.name, status: j.status, conclusion: j.conclusion,
-        started_at: j.started_at, completed_at: j.completed_at, url: j.html_url,
-        step: (j.steps || []).find((s) => s.status === 'in_progress')?.name || null,
-      })),
-    };
+    const runs = {}, jobs = [];
+    for (const [group, file] of Object.entries(WORKFLOWS)) {
+      let list = [];
+      try {
+        list = (await gh(`actions/workflows/${file}/runs?per_page=5`)).workflow_runs || [];
+      } catch (e) {
+        if (e.status !== 404) throw e;   // 아직 없는 워크플로우는 건너뛴다
+      }
+      const pick = list.find((r) => r.status !== 'completed') || list[0];
+      runs[group] = slim(pick, group);
+      if (pick) {
+        for (const j of (await gh(`actions/runs/${pick.id}/jobs?per_page=30`)).jobs || []) {
+          jobs.push({
+            name: j.name, status: j.status, conclusion: j.conclusion, run_id: pick.id, group,
+            started_at: j.started_at, completed_at: j.completed_at, url: j.html_url,
+            step: (j.steps || []).find((s) => s.status === 'in_progress')?.name || null,
+          });
+        }
+      }
+    }
+    const data = { ok: true, runs, current: runs.main || runs.heavy || null, jobs };
     ghCache = { at: Date.now(), data };
     return data;
   } catch (e) {
@@ -61,5 +69,6 @@ export default async function handler(req, res) {
   }
   for (const p of Object.keys(names)) if (!out.products[p]) out.products[p] = { name: names[p], last: null, log: [] };
   out.github = await github();
+  out.heavy = HEAVY;
   return send(res, 200, out);
 }
