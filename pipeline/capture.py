@@ -115,7 +115,8 @@ class Rejected(Exception):
 
 
 def capture(url, recipe, seconds, out_path, seed=0, setup=None, block=None, routes=None, locale=None,
-            touch=False, preflight=None, adjust=None, prepare=None, fps=None, storage=None):
+            touch=False, preflight=None, adjust=None, prepare=None, fps=None, storage=None,
+            on_event=None, on_frame=None):
     """url 을 seconds 초(게임 시간) 동안 녹화해 out_path(.mp4)에 저장.
 
     setup: 녹화 전에 실시간으로 실행할 동작(시작 버튼 누르기 등)
@@ -173,6 +174,8 @@ def capture(url, recipe, seconds, out_path, seed=0, setup=None, block=None, rout
                     continue
                 page.screenshot(path=str(frames / f"f_{n:05d}.jpg"), type="jpeg", quality=92)
                 n += 1
+                if on_frame:
+                    on_frame(n, total)
                 if n >= total:
                     raise Done
 
@@ -184,6 +187,8 @@ def capture(url, recipe, seconds, out_path, seed=0, setup=None, block=None, rout
                 tick(400)
                 ok, why = preflight(page.screenshot(type="png"))
                 print(f"[preflight] {attempt + 1}번째 화면: {'통과' if ok else '불합격 — ' + why}")
+                if on_event:
+                    on_event("화면 확인", f"{attempt + 1}번째 화면 {'통과' if ok else '불합격 — ' + why}")
                 if ok:
                     break
                 for st in adjust or [{"do": "wait", "ms": 1500}]:

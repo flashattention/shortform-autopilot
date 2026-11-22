@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>숏폼 파이프라인</title>
+<style>
+  :root{
+    --bg:#f6f5f2;--card:#fff;--ink:#1d1d1b;--sub:#6b6a66;--line:#e6e4de;
+    --run:#2563eb;--ok:#15803d;--bad:#c2410c;--wait:#8a8780;--warn:#b45309;
+  }
+  @media (prefers-color-scheme:dark){
+    :root{--bg:#141413;--card:#1e1e1c;--ink:#ecebe7;--sub:#9c9a94;--line:#2e2d2a;--run:#60a5fa;--ok:#4ade80;--bad:#fb923c;--wait:#8a8780;--warn:#fbbf24}
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 -apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Noto Sans KR",sans-serif}
+  .wrap{max-width:1180px;margin:0 auto;padding:28px 20px 60px}
+  header{display:flex;flex-wrap:wrap;gap:12px 24px;align-items:flex-end;justify-content:space-between;margin-bottom:20px}
+  h1{font-size:22px;margin:0;letter-spacing:-.02em}
+  .meta{color:var(--sub);font-size:13px}
+  .run{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 18px;margin-bottom:18px;display:flex;flex-wrap:wrap;gap:8px 28px;align-items:center}
+  .run b{font-weight:600}
+  .run a{color:inherit}
+  .notice{background:var(--card);border:1px dashed var(--warn);color:var(--warn);border-radius:12px;padding:10px 14px;margin-bottom:16px;font-size:13px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:14px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 18px;display:flex;flex-direction:column;gap:10px;min-height:250px}
+  .top{display:flex;justify-content:space-between;align-items:center;gap:10px}
+  .name{font-weight:650;font-size:16px}
+  .badge{font-size:12px;padding:3px 9px;border-radius:999px;border:1px solid currentColor;white-space:nowrap}
+  .s-run{color:var(--run)} .s-ok{color:var(--ok)} .s-bad{color:var(--bad)} .s-wait{color:var(--wait)} .s-warn{color:var(--warn)}
+  .stage{font-size:20px;font-weight:650;letter-spacing:-.01em}
+  .detail{color:var(--sub);font-size:13px;min-height:20px;word-break:break-all}
+  .bar{height:6px;background:var(--line);border-radius:6px;overflow:hidden}
+  .bar i{display:block;height:100%;background:var(--run);width:0;transition:width .6s}
+  .nums{display:flex;gap:16px;font-size:13px;color:var(--sub)}
+  .nums b{color:var(--ink);font-variant-numeric:tabular-nums}
+  .log{margin:0;padding:0;list-style:none;font-size:12.5px;color:var(--sub);border-top:1px solid var(--line);padding-top:8px;max-height:170px;overflow:auto}
+  .log li{display:flex;gap:8px;padding:2px 0}
+  .log time{font-variant-numeric:tabular-nums;flex:none;width:58px}
+  .log .st{color:var(--ink);flex:none}
+  .log .bad{color:var(--bad)}
+  h2{font-size:16px;margin:28px 0 10px}
+  .videos{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:6px 18px}
+  .videos div{display:flex;gap:12px;padding:8px 0;border-bottom:1px solid var(--line);font-size:14px}
+  .videos div:last-child{border:0}
+  .videos time{color:var(--sub);flex:none;width:84px;font-variant-numeric:tabular-nums;font-size:13px}
+  .videos .p{color:var(--sub);flex:none;width:130px;font-size:13px}
+  .empty{color:var(--sub);font-size:13px;padding:12px 0}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>숏폼 파이프라인</h1>
+      <div class="meta" id="sched"></div>
+    </div>
+    <div class="meta" id="fresh">불러오는 중…</div>
+  </header>
+  <div id="notice"></div>
+  <div class="run" id="run"></div>
+  <div class="grid" id="grid"></div>
+  <h2>최근 보낸 영상</h2>
+  <div class="videos" id="videos"><div class="empty">아직 없습니다</div></div>
+</div>
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const hm = (t) => new Date(t).toLocaleTimeString('ko-KR', {hour:'2-digit', minute:'2-digit', hour12:false, timeZone:'Asia/Seoul'});
+const mdhm = (t) => new Date(t).toLocaleString('ko-KR', {month:'numeric', day:'numeric', hour:'2-digit', minute:'2-digit', hour12:false, timeZone:'Asia/Seoul'});
+function ago(ms){ const s=Math.max(0,Math.round(ms/1000)); if(s<60) return s+'초 전'; const m=Math.round(s/60); if(m<60) return m+'분 전'; return Math.round(m/60)+'시간 전'; }
+
+const JOB_KO = {queued:'대기 중', in_progress:'진행 중', waiting:'대기 중', pending:'대기 중', requested:'대기 중'};
+const CONC_KO = {success:'끝남', failure:'실패', cancelled:'취소됨', skipped:'건너뜀', timed_out:'시간 초과'};
+const EVENT_KO = {schedule:'예약 실행', workflow_dispatch:'직접 실행', push:'코드 올림'};
+
+function nextSchedule(now){
+  // 06:17 (3번 연속), 17:17 (6번 연속) KST. GitHub 사정으로 늦게 시작할 수 있다
+  const kst = new Date(now + 9*3600e3);
+  const slots = [[6,17,'아침 3번 연속'],[17,17,'저녁 6번 연속']];
+  for (let d=0; d<2; d++) for (const [h,m,label] of slots){
+    const t = Date.UTC(kst.getUTCFullYear(), kst.getUTCMonth(), kst.getUTCDate()+d, h, m) - 9*3600e3;
+    if (t > now) return {t, label};
+  }
+}
+
+function jobFor(gh, product){
+  return (gh.jobs || []).find((j) => j.name === `produce (${product})` || j.name.endsWith(`(${product})`));
+}
+
+function badge(job, last, now, runActive){
+  if (job){
+    if (job.status !== 'completed'){
+      if (job.status === 'in_progress' && last && now - last.ts > 12*60e3 && last.stage !== '끝')
+        return ['s-warn', `응답 없음 ${ago(now-last.ts).replace(' 전','')}`];
+      return [job.status === 'in_progress' ? 's-run' : 's-wait', JOB_KO[job.status] || job.status];
+    }
+    return [job.conclusion === 'success' ? 's-ok' : 's-bad', CONC_KO[job.conclusion] || job.conclusion];
+  }
+  return ['s-wait', runActive ? '시작 전' : '쉬는 중'];
+}
+
+function card(id, p, gh, now){
+  const last = p.last, job = jobFor(gh, id);
+  const runActive = gh.current && gh.current.status !== 'completed';
+  const [cls, label] = badge(job, last, now, runActive);
+  const sameRun = last && gh.current && String(last.run_id) === String(gh.current.id);
+  let stage = '기록 없음', detail = '', pct = null;
+  if (last){
+    stage = last.stage || '';
+    detail = [last.scene && `${last.scene}`, last.lang && (last.lang === 'ko' ? '한국어' : '영어'), last.detail].filter(Boolean).join(' · ');
+    if (last.frames) pct = Math.min(100, Math.round(100 * (last.frame || 0) / last.frames));
+    else if (last.total && last.done != null) pct = Math.min(100, Math.round(100 * last.done / last.total));
+    if (!sameRun && gh.current) detail = `지난 실행 · ${detail}`;
+  }
+  if (job && job.status === 'queued') { stage = '차례를 기다리는 중'; detail = 'GitHub 서버가 배정되면 시작합니다'; pct = null; }
+  else if (job && job.status === 'in_progress' && !sameRun) { stage = job.step || '진행 중'; detail = '이번 실행의 세부 진행 상황은 아직 받지 못했어요'; pct = null; }
+  const logs = (p.log || []).map((e) => `<li><time>${hm(e.ts)}</time><span class="st">${esc(e.stage)}</span><span class="${e.stage==='제외'||e.stage==='중단'?'bad':''}">${esc([e.scene, e.lang, e.detail].filter(Boolean).join(' · '))}</span></li>`).join('');
+  return `<div class="card">
+    <div class="top"><span class="name">${esc(p.name)}</span><span class="badge ${cls}">${esc(label)}</span></div>
+    <div class="stage">${esc(stage)}</div>
+    <div class="detail">${esc(detail)}${last ? ` <span title="${esc(mdhm(last.ts))}">· ${ago(now - last.ts)}</span>` : ''}</div>
+    <div class="bar" style="visibility:${pct==null?'hidden':'visible'}"><i style="width:${pct||0}%"></i></div>
+    <div class="nums"><span>이번 실행 보냄 <b>${sameRun ? (last.sent ?? 0) : 0}</b></span><span>제외 <b>${sameRun ? (last.failed ?? 0) : 0}</b></span><span>예정 <b>${sameRun ? (last.total ?? '-') : '-'}</b></span>${job && job.url ? `<a href="${esc(job.url)}" target="_blank" rel="noopener" style="margin-left:auto;color:inherit">로그</a>` : ''}</div>
+    <ul class="log">${logs || '<li>아직 기록이 없습니다</li>'}</ul>
+  </div>`;
+}
+
+let lastOk = 0;
+async function tick(){
+  let d;
+  try {
+    const r = await fetch('/api/status', {cache:'no-store'});
+    d = await r.json();
+    lastOk = Date.now();
+  } catch (e) {
+    $('fresh').textContent = '연결 실패 — 다시 시도 중';
+    return;
+  }
+  const now = d.now, gh = d.github || {};
+  const n = nextSchedule(Date.now());
+  $('sched').textContent = n ? `다음 예약: ${mdhm(n.t)} (${n.label}) · GitHub 사정으로 늦게 시작할 수 있어요` : '';
+  const notes = [];
+  if (!d.store) notes.push('진행 상황 저장소(Upstash Redis)가 아직 연결되지 않아 GitHub 실행 상태만 보입니다. README 의 대시보드 설정을 확인하세요.');
+  if (d.storeError) notes.push('저장소 오류: ' + d.storeError);
+  if (gh.ok === false) notes.push('GitHub 상태를 못 읽었습니다: ' + gh.error);
+  $('notice').innerHTML = notes.map((x) => `<div class="notice">${esc(x)}</div>`).join('');
+  const c = gh.current;
+  if (c){
+    const active = c.status !== 'completed';
+    const st = active ? (JOB_KO[c.status] || c.status) : (CONC_KO[c.conclusion] || c.conclusion);
+    $('run').innerHTML = `<span><b>${active ? '지금 실행' : '마지막 실행'}</b> · <span class="${active?'s-run':c.conclusion==='success'?'s-ok':'s-bad'}">${esc(st)}</span></span>
+      <span>${esc(EVENT_KO[c.event] || c.event)} · ${mdhm(c.created_at)} 시작</span>
+      <span>${active ? '경과 ' + ago(now - Date.parse(c.created_at)).replace(' 전','') : '끝난 지 ' + ago(now - Date.parse(c.updated_at))}</span>
+      <a href="${esc(c.url)}" target="_blank" rel="noopener">GitHub에서 보기</a>`;
+  } else $('run').innerHTML = '<span>실행 기록이 없습니다</span>';
+  $('grid').innerHTML = Object.entries(d.products).map(([id, p]) => card(id, p, gh, now)).join('');
+  $('videos').innerHTML = (d.videos || []).length ? d.videos.map((v) => `<div><time>${mdhm(v.ts)}</time><span class="p">${esc(d.products[v.product]?.name || v.product)} · ${v.lang==='ko'?'한국어':'영어'}</span><span>${esc(v.hook)}</span></div>`).join('') : '<div class="empty">아직 없습니다</div>';
+  $('fresh').textContent = '방금 갱신';
+}
+setInterval(() => { if (lastOk) $('fresh').textContent = '마지막 갱신 ' + ago(Date.now() - lastOk); }, 1000);
+tick();
+setInterval(tick, 5000);
+</script>
+</body>
+</html>

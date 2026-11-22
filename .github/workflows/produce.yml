@@ -70,6 +70,9 @@ jobs:
       MAIL_USERNAME: ${{ secrets.MAIL_USERNAME }}
       MAIL_PASSWORD: ${{ secrets.MAIL_PASSWORD }}
       MAIL_TO: ${{ secrets.MAIL_TO }}
+      DASHBOARD_URL: ${{ vars.DASHBOARD_URL }}         # 진행 상황을 보낼 대시보드 주소 (없으면 안 보냄)
+      PROGRESS_SECRET: ${{ secrets.PROGRESS_SECRET }}
+      ROUNDS_LEFT: ${{ needs.setup.outputs.rounds }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5

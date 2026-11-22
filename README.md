@@ -65,3 +65,19 @@ python -m pipeline.run produce --no-queue     # out/ 에 영상만 만들기
 - **자동 녹화는 봇이 정해진 조작을 반복하는 화면입니다.** 러너나 Latent Atlas처럼 단순한 화면에는 쓸 만하지만, 카피좀비 같은 슈팅은 사람이 플레이한 클립이 훨씬 낫습니다. 플레이 테스트할 때 화면 녹화를 켜 두고 `clips/` 에 넣는 걸 권합니다.
 - 자동 녹화에는 소리가 없습니다. 배경음을 넣지 않으면 무음이니, 올릴 때 앱에서 음원을 붙이세요.
 - 쥐 가장의 CTA는 스팀 페이지가 생기기 전이라 "Follow for the demo" 로 해뒀습니다. 페이지를 열면 "Wishlist on Steam" 으로 바꾸세요.
+
+## 진행 상황 대시보드 (Vercel)
+
+`dashboard/` 폴더가 대시보드입니다. 제품마다 지금 어느 단계인지(화면 확인, 녹화 몇 장째, 문구, 편집, 메일), 이번 실행에서 보낸 수·제외 수, 최근 기록, 최근 보낸 영상을 5초마다 보여 줍니다.
+
+1. Vercel → Add New → Project → 이 레포를 가져오고, **Root Directory 를 `dashboard`** 로 정한 뒤 배포합니다. (Framework Preset 은 Other)
+2. 그 프로젝트의 Storage(또는 Marketplace)에서 **Upstash Redis** 를 만들어 연결합니다. 연결하면 `KV_REST_API_URL`, `KV_REST_API_TOKEN` 이 자동으로 들어갑니다. 무료 요금제로 충분합니다.
+3. 프로젝트 Settings → Environment Variables 에 추가합니다.
+   - `PROGRESS_SECRET`: 아무도 모르는 긴 문자열 (파이프라인과 똑같이 넣습니다)
+   - `GITHUB_TOKEN`: GitHub 에서 만든 읽기 전용 토큰 (Fine-grained token, 이 레포만, Actions 권한 Read-only). 없으면 GitHub 가 시간당 60번만 허락해서 실행 상태가 금방 안 보이게 됩니다
+4. 다시 배포(Redeploy)합니다.
+5. 이 레포 Settings → Secrets and variables → Actions 에 넣습니다.
+   - Variables: `DASHBOARD_URL` = 배포된 주소 (예: `https://shortform-dashboard.vercel.app`)
+   - Secrets: `PROGRESS_SECRET` = 3번과 같은 값
+
+`DASHBOARD_URL` 이 없거나 대시보드가 꺼져 있어도 영상 만들기는 그대로 돌아갑니다. 대시보드는 다음 실행부터 세부 진행 상황을 받습니다.
