@@ -81,6 +81,19 @@ def _step(page, s, rng, wait):
                 page.mouse.move(x + int(sweep * W * rng.uniform(-1, 1)), y)
             wait(ms / steps)
         page.mouse.up()
+    elif do == "touch_hold":  # 손가락을 댄 채 유지·이동. touches: [{from:[x,y], to:[x,y]}] 여러 손가락 가능
+        cdp, pts = page.cdp, s["touches"]
+        def at(t):
+            return [{"x": (a["from"][0] + (a.get("to", a["from"])[0] - a["from"][0]) * t) * W,
+                     "y": (a["from"][1] + (a.get("to", a["from"])[1] - a["from"][1]) * t) * H, "id": i}
+                    for i, a in enumerate(pts)]
+        cdp.send("Input.dispatchTouchEvent", {"type": "touchStart", "touchPoints": at(0)})
+        ms = s.get("ms", 1000)
+        steps = max(1, ms // 66)
+        for i in range(1, steps + 1):
+            cdp.send("Input.dispatchTouchEvent", {"type": "touchMove", "touchPoints": at(i / steps)})
+            wait(ms / steps)
+        cdp.send("Input.dispatchTouchEvent", {"type": "touchEnd", "touchPoints": []})
     elif do == "scroll":
         page.mouse.wheel(0, s.get("dy", 300))
         wait(s.get("ms", 300))
@@ -88,10 +101,17 @@ def _step(page, s, rng, wait):
         raise ValueError(f"모르는 동작: {do}")
 
 
-def capture(url, recipe, seconds, out_path, seed=0, setup=None, block=None, routes=None, locale=None):
+class Rejected(Exception):
+    """찍기 전 화면 확인에서 끝내 통과하지 못함."""
+
+
+def capture(url, recipe, seconds, out_path, seed=0, setup=None, block=None, routes=None, locale=None,
+            touch=False, preflight=None, adjust=None, prepare=None):
     """url 을 seconds 초(게임 시간) 동안 녹화해 out_path(.mp4)에 저장.
 
     setup: 녹화 전에 실시간으로 실행할 동작(시작 버튼 누르기 등)
+    preflight: 스크린샷(png bytes)을 받아 (통과, 이유)를 돌려주는 함수. 통과한 그 화면에서 이어서 녹화한다.
+               떨어지면 adjust 동작으로 화면을 바꿔 다시 확인하고, 끝내 안 되면 Rejected 를 던진다
     block: 막을 요청 주소 패턴 목록. 봇 플레이가 운영 서버에 기록·통계를 남기지 않게 한다
     """
     rng = random.Random(seed)
@@ -105,12 +125,14 @@ def capture(url, recipe, seconds, out_path, seed=0, setup=None, block=None, rout
     with sync_playwright() as p:
         browser = p.chromium.launch(**launch)
         ctx = browser.new_context(
-            viewport={"width": W, "height": H}, is_mobile=True, has_touch=False,
+            viewport={"width": W, "height": H}, is_mobile=True, has_touch=bool(touch),
             locale=locale or "ko-KR",   # 사이트가 브라우저 언어를 따라가면 화면도 그 언어로 나온다
             user_agent="Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 "
                        "(KHTML, like Gecko) Chrome/130.0 Mobile Safari/537.36",
         )
         page = ctx.new_page()
+        page.set_default_timeout(180000)   # 무거운 3D 장면은 한 장 찍는 데도 오래 걸린다
+        page.cdp = ctx.new_cdp_session(page)
         for pat in block or []:
             page.route(pat, lambda route: route.abort())
         for pat, handler in (routes or {}).items():
@@ -125,15 +147,38 @@ def capture(url, recipe, seconds, out_path, seed=0, setup=None, block=None, rout
         class Done(Exception):
             pass
 
+        recording = False
+
         def tick(ms):
             nonlocal n
             for _ in range(max(1, round(ms * FPS / 1000))):
                 step = round((n + 1) * 1000 / FPS) - round(n * 1000 / FPS)  # 33·33·34ms 를 번갈아 (정수만 받는다)
                 page.clock.run_for(step)
+                if not recording:
+                    continue
                 page.screenshot(path=str(frames / f"f_{n:05d}.jpg"), type="jpeg", quality=92)
                 n += 1
                 if n >= total:
                     raise Done
+
+        for st in prepare or []:  # 녹화하지 않고 게임 시간만 흘려보내는 준비 동작 (적이 다가올 때까지 기다리기 등)
+            _step(page, st, rng, tick)
+        if preflight:  # 찍기 전에 화면부터 확인하고, 통과한 그 화면에서 이어서 찍는다
+            why = ""
+            for attempt in range(5):
+                tick(400)
+                ok, why = preflight(page.screenshot(type="png"))
+                print(f"[preflight] {attempt + 1}번째 화면: {'통과' if ok else '불합격 — ' + why}")
+                if ok:
+                    break
+                for st in adjust or [{"do": "wait", "ms": 1500}]:
+                    _step(page, st, rng, tick)
+            else:
+                ctx.close()
+                browser.close()
+                shutil.rmtree(frames, ignore_errors=True)
+                raise Rejected(why)
+        recording = True
 
         try:
             while True:

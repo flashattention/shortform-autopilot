@@ -51,6 +51,13 @@ def send_summary(sent, failed):
     return _send(msg, "요약")
 
 
+def send_alert(text):
+    msg = EmailMessage()
+    msg["Subject"] = "[숏폼 경고] 영상을 만들지 못했습니다"
+    msg.set_content(text)
+    return _send(msg, "경고")
+
+
 def _send(msg, note):
     user = (os.environ.get("MAIL_USERNAME") or "").strip()
     password = "".join(c for c in (os.environ.get("MAIL_PASSWORD") or "") if not c.isspace()).strip("\"'")

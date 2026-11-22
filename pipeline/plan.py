@@ -1,13 +1,10 @@
 """기획: 제품마다 장면을 고르고, 장면 하나로 한국어 1편 + 영어 1편의 포맷과 문구를 정합니다.
 
-ANTHROPIC_API_KEY 가 있으면 Claude가 장면에 맞춰 문구를 새로 쓰고, 없으면 products.yaml 의 문구를 돌려 씁니다.
+문구는 원본을 찍은 뒤, Claude가 찍힌 화면을 직접 보고 씁니다 (write_copy).
 """
 import datetime
 import json
-import os
 import random
-
-import requests
 
 from .common import CLIPS, load_state, load_yaml
 
@@ -37,7 +34,7 @@ def pick_sources(pid, product, history, n, rng):
     scenes.sort(key=lambda s: last.get(s["id"], -1))
     for s in scenes[: max(0, n - len(out))]:
         out.append({"type": "capture", "scene": s["id"], "desc": s["desc"], "clip": None,
-                    "url": s.get("url") or product["url"], "setup": s.get("setup") or cap.get("setup"),
+                    "url": s.get("url") or cap.get("url") or product["url"], "setup": s.get("setup") or cap.get("setup"),
                     "recipe": s.get("recipe") or cap.get("recipe")})
     return out
 
@@ -75,57 +72,63 @@ def template_copy(pid, product, lang, history, used, rng):
                          "shorts": f"{hook} | {name} #Shorts"[:100], "tiktok": f"{hook} {tags}"}}
 
 
-def claude_copy(pid, product, fmt, lang, scene_desc, history, used, metrics):
-    key = os.environ.get("ANTHROPIC_API_KEY")
-    if not key:
-        return None
-    recent = [h.get("hook") for h in history if h["product"] == pid][-20:] + sorted(used)
-    best = sorted((m for m in metrics.values() if m.get("views")), key=lambda m: -m["views"])[:5]
+def claude_copy(spec, product, fmt, frames, recent, best):
+    """찍힌 화면(frames)을 직접 보고 문구를 쓴다. 화면에 없는 이야기를 못 하게 하기 위함."""
+    from . import qc
+    lang = spec["lang"]
     ko = lang == "ko"
-    prompt = f"""숏폼 영상 한 편의 문구를 써 주세요. JSON만 출력합니다.
+    prompt = f"""위 이미지는 숏폼 영상에 실제로 들어갈 화면 3장(시간 순서)입니다. 이 화면에 붙일 문구를 써 주세요. JSON만 출력합니다.
 
 제품: {product['name'][lang]} — {product['about'][lang]}
-이 영상에 실제로 나오는 화면: {scene_desc}
+장면: {spec['scene_desc']}
 포맷: {fmt['label']} — {fmt['guide']}
 언어와 시청자: {'한국어. 한국 인스타 릴스·쇼츠. 큰 예능 자막, 공감, 반말 톤' if ko else 'English. Global TikTok and Shorts. Plain, punchy, first-second hook'}
 안내 문구: {product['link_text'].get(lang, '')}
 톤 참고용 훅(그대로 쓰지 말 것): {json.dumps(product['hooks'][lang], ensure_ascii=False)}
 이미 쓴 훅(겹치거나 비슷하면 안 됨): {json.dumps(recent, ensure_ascii=False)}
-잘된 영상의 훅: {json.dumps([b.get('hook') for b in best], ensure_ascii=False)}
+잘된 영상의 훅: {json.dumps(best, ensure_ascii=False)}
 
 규칙:
-- 화면에 실제로 나오는 것만 말할 것. 없는 기능·수치·순위·수상·사용자 수를 지어내지 말 것
-- hook: 화면 위에 크게 들어갈 한 문장. {'한국어 20자 안팎' if ko else 'max 9 words'}. 이 장면에만 맞는 구체적인 내용으로
+- 먼저 이미지에 실제로 무엇이 보이는지 확인하고, 보이는 것만 말할 것. 화면에 적이 없으면 싸운다고 쓰지 말 것
+- 없는 기능·수치·순위·수상·사용자 수를 지어내지 말 것
+- hook: 화면 위에 크게 들어갈 한 문장. {'한국어 20자 안팎' if ko else 'max 9 words'}. 이 화면에만 맞는 구체적인 내용으로
 - cta: 화면 아래 한 줄. {'한국어 16자 안팎' if ko else 'max 6 words'}
 - instagram: 캡션 2~3줄 + 댓글로 답할 질문 하나 + 해시태그 5개
 - shorts: 검색되는 제목 60자 이내, 끝에 #Shorts
 - tiktok: 한 줄 + 해시태그 4~5개
 - 모든 문구는 {'한국어' if ko else 'English'}로
 
-출력 형식: {{"hook": "...", "cta": "...", "captions": {{"instagram": "...", "shorts": "...", "tiktok": "..."}}}}"""
-    try:
-        r = requests.post(
-            "https://api.anthropic.com/v1/messages",
-            headers={"x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json"},
-            json={"model": os.environ.get("PLANNER_MODEL") or "claude-haiku-5-5", "max_tokens": 800,
-                  "messages": [{"role": "user", "content": prompt}]},
-            timeout=90,
-        )
-        r.raise_for_status()
-        text = r.json()["content"][0]["text"]
-        data = json.loads(text[text.index("{"): text.rindex("}") + 1])
-        assert data["hook"] and data["cta"] and set(data["captions"]) >= {"instagram", "shorts", "tiktok"}
-        return data
-    except Exception as e:  # 문구 생성이 실패해도 파이프라인은 계속 돈다
-        print(f"[plan] Claude 문구 생성 실패, 기본 문구 사용: {e}")
-        return None
+출력 형식: {{"seen": "이미지에 보이는 것 한 문장", "hook": "...", "cta": "...", "captions": {{"instagram": "...", "shorts": "...", "tiktok": "..."}}}}"""
+    data = qc._ask([qc._img(f) for f in frames] + [{"type": "text", "text": prompt}], max_tokens=900)
+    if not (data.get("hook") and data.get("cta") and set(data.get("captions") or {}) >= {"instagram", "shorts", "tiktok"}):
+        raise qc.Unavailable("문구 응답에 빠진 항목이 있음")
+    return {k: data[k] for k in ("hook", "cta", "captions")}
+
+
+def write_copy(spec, frames, used, use_claude, rng):
+    """원본을 찍은 뒤에 부른다. spec 에 hook·cta·captions 를 채운다."""
+    cfg, formats = load_yaml("products.yaml"), load_yaml("formats.yaml")
+    history, metrics = load_state("history.json", []), load_state("metrics.json", {})
+    pid, product, fmt = spec["product"], cfg["products"][spec["product"]], formats[spec["format"]]
+    if use_claude:
+        recent = [h.get("hook") for h in history if h["product"] == pid][-20:] + sorted(used)
+        best = [m.get("hook") for m in sorted((m for m in metrics.values() if m.get("views")),
+                                               key=lambda m: -m["views"])[:5]]
+        copy = claude_copy(spec, product, fmt, frames, recent, best)
+    else:
+        copy = template_copy(pid, product, spec["lang"], history, used, rng)
+    used.add(copy["hook"])
+    if fmt.get("series"):
+        day = 1 + sum(1 for h in history if h["product"] == pid and h["format"] == spec["format"]
+                      and h["account"] == spec["account"])
+        copy["hook"] = f"Day {day} · {copy['hook']}"
+    spec.update(copy)
 
 
 def make_specs(seed=None, only_product=None):
     cfg, formats = load_yaml("products.yaml"), load_yaml("formats.yaml")
     history = load_state("history.json", [])
-    metrics = load_state("metrics.json", {})
-    scores = format_scores(metrics)
+    scores = format_scores(load_state("metrics.json", {}))
     rng = random.Random(seed)
     today = datetime.datetime.now().strftime("%Y%m%d-%H%M")
     specs = []
@@ -136,22 +139,15 @@ def make_specs(seed=None, only_product=None):
         if not sources:
             print(f"[plan] {pid}: 찍을 장면도 클립도 없어 건너뜁니다")
             continue
-        i18n = bool((product.get("capture") or {}).get("i18n"))
+        cap = product.get("capture") or {}
+        i18n = bool(cap.get("i18n"))
         taken = {lang: set() for lang in cfg["langs"]}
-        used = set()
         for src in sources:
             for lang, lc in cfg["langs"].items():
                 account = lc["account"]
                 fmt_id = pick_format(pid, product, formats, account, history, taken[lang], scores, rng)
                 taken[lang].add(fmt_id)
                 fmt = formats[fmt_id]
-                copy = claude_copy(pid, product, fmt, lang, src["desc"][lang], history, used, metrics) \
-                    or template_copy(pid, product, lang, history, used, rng)
-                used.add(copy["hook"])
-                if fmt.get("series"):
-                    day = 1 + sum(1 for h in history if h["product"] == pid and h["format"] == fmt_id
-                                  and h["account"] == account)
-                    copy["hook"] = f"Day {day} · {copy['hook']}"
                 lo, hi = fmt["duration"]
                 source = dict(src)
                 if src["type"] == "capture":
@@ -162,6 +158,7 @@ def make_specs(seed=None, only_product=None):
                     "product": pid, "format": fmt_id, "account": account, "lang": lang,
                     "scene": src["scene"], "scene_desc": src["desc"][lang], "about": product["about"][lang],
                     "platforms": lc["platforms"], "duration": rng.randint(lo, hi), "hook_hold": fmt["hook_hold"],
-                    "source": source, "clip": src.get("clip"), **copy,
+                    "must_show": cap.get("must_show", ""),
+                    "source": source, "clip": src.get("clip"), "hook": None, "cta": None, "captions": None,
                 })
     return specs

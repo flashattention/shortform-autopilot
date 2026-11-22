@@ -13,31 +13,45 @@ from . import edit, plan
 from .common import OUT, load_state, load_yaml, save_state
 
 
-def _footage(spec, need, pc, work, seed, cache):
+def _footage(spec, need, pc, work, seed, cache, strict):
     """이 영상에 쓸 원본을 마련한다. 같은 장면은 한 번만 찍어 한국어·영어 편이 나눠 쓴다.
-    화면 검사에 떨어지면 한 번 다시 찍는다. (원본 목록, 앞에서 자를 초) 또는 실패 이유(str)."""
+    찍기 전에 화면을 먼저 확인하고(strict), 찍은 뒤에는 멈춘 화면·빈 화면이 아닌지 본다. 떨어지면 한 번 다시 찍는다.
+    (원본 목록, 앞에서 자를 초, 문구용 장면 3장) 또는 실패 이유(str)."""
     from . import qc
     src = spec["source"]
     if src["type"] == "clip":
         ok, why, _ = qc.check_footage(src["path"])
-        return ([src["path"]], 0.0) if ok else f"클립 화면 검사 불합격: {why}"
+        if not ok:
+            return f"클립 화면 검사 불합격: {why}"
+        work.mkdir(parents=True, exist_ok=True)
+        return [src["path"]], 0.0, qc.grab_frames(src["path"], work, (0.15, 0.5, 0.85), dur=spec["duration"])
     key = src["key"]
     if key not in cache:
         from . import capture
         trim = float(pc.get("trim_start", 0))
+        work.mkdir(parents=True, exist_ok=True)
+        pre = None
+        if strict:
+            pre = lambda png: qc.check_frame(png, spec["about"], spec["scene_desc"], spec["must_show"])
         result = "녹화 실패"
         for attempt in range(2):
             try:
                 raw = capture.capture(src["url"], src.get("recipe"), need[key] + trim + 2, work / f"raw_{attempt}.mp4",
                                       seed=(seed or 0) + attempt, setup=src.get("setup"), block=pc.get("block"),
-                                      locale=src.get("locale"))
+                                      locale=src.get("locale"), touch=pc.get("touch"), prepare=pc.get("prepare"),
+                                      preflight=pre, adjust=pc.get("adjust"))
+            except qc.Unavailable:
+                raise
+            except capture.Rejected as e:
+                result = f"찍기 전 화면 확인 불합격: {e}"
+                continue
             except Exception as e:
                 result = f"녹화 실패: {str(e).splitlines()[0][:200]}"
                 continue
             ok, why, stats = qc.check_footage(raw, start=trim, min_moving=pc.get("min_moving", 0.5))
             print(f"[qc] {key} 화면 검사 {'통과' if ok else '불합격: ' + why} {stats}")
             if ok:
-                result = ([raw], trim)
+                result = ([raw], trim, qc.grab_frames(raw, work, (0.15, 0.5, 0.85), start=trim, dur=need[key]))
                 break
             result = f"화면 검사 불합격: {why}"
         cache[key] = result
@@ -45,7 +59,17 @@ def _footage(spec, need, pc, work, seed, cache):
 
 
 def produce(args):
+    import random
     from . import mailer, qc, review
+    strict = bool(qc._key()) or not args.no_queue   # 검수 없이는 아무것도 보내지 않는다
+    if strict:
+        try:
+            qc.api_check()
+        except qc.Unavailable as e:
+            print(f"::error::검수를 할 수 없어 영상을 만들지 않았습니다 — {e}")
+            if not args.no_queue:
+                mailer.send_alert(f"검수를 할 수 없어 이번에는 영상을 만들지 않았습니다.\n\n이유: {e}")
+            sys.exit(1)
     cfg = load_yaml("products.yaml")
     specs = plan.make_specs(seed=args.seed, only_product=args.product)
     history = load_state("history.json", [])
@@ -54,23 +78,26 @@ def produce(args):
         k = s["source"].get("key")
         if k:
             need[k] = max(need.get(k, 0), s["duration"])
-    cache, sent, failed = {}, [], []
+    cache, sent, failed, used, rng = {}, [], [], {}, random.Random(args.seed)
     for spec in specs:
         try:
             work = OUT / spec["id"]
             work.mkdir(parents=True, exist_ok=True)
             pc = cfg["products"][spec["product"]].get("capture") or {}
-            got = _footage(spec, need, pc, OUT / ("_raw_" + (spec["source"].get("key") or spec["id"])), args.seed, cache)
+            got = _footage(spec, need, pc, OUT / ("_raw_" + (spec["source"].get("key") or spec["id"])),
+                           args.seed, cache, strict)
             if isinstance(got, str):
                 failed.append((spec, got))
                 continue
-            sources, trim = got
+            sources, trim, frames = got
+            plan.write_copy(spec, frames, used.setdefault(spec["product"], set()), strict, rng)  # 찍힌 화면을 보고 문구 작성
             video = edit.render(spec, sources, work / "video.mp4", trim_start=trim)
-            ok, why = qc.check_content(video, spec, work)
-            print(f"[qc] {spec['id']} 내용 검사: {'통과' if ok else ('건너뜀' if ok is None else '불합격')} {why}")
-            if ok is False:
-                failed.append((spec, f"내용 검사 불합격: {why}"))
-                continue
+            if strict:
+                ok, why = qc.check_content(video, spec, work)
+                print(f"[qc] {spec['id']} 완성본 검수: {'통과' if ok else '불합격'} — {why}")
+                if not ok:
+                    failed.append((spec, f"완성본 검수 불합격: {why}"))
+                    continue
             (work / "spec.json").write_text(json.dumps(spec, ensure_ascii=False, indent=2), encoding="utf-8")
             entry = {k: spec[k] for k in ("id", "product", "format", "account", "lang", "scene", "hook", "clip")}
             entry.update(status="local", created=datetime.date.today().isoformat())
@@ -82,6 +109,8 @@ def produce(args):
                 save_state("history.json", history)  # 중간에 끊겨도 보낸 것까지는 남게
             sent.append(spec)
             print(f"[produce] 완성: {video}")
+        except qc.Unavailable as e:   # 검수가 안 되면 검수 못 한 영상은 보내지 않는다
+            failed.append((spec, f"검수 불가로 제외: {e}"))
         except Exception as e:
             traceback.print_exc()
             failed.append((spec, f"제작 중 오류: {str(e).splitlines()[0][:200]}"))

@@ -44,44 +44,92 @@ def check_footage(path, start=0.0, dur=None, min_moving=0.5):
     return True, "", stats
 
 
+class Unavailable(Exception):
+    """검수용 Claude 호출을 쓸 수 없음. 검수 없이 보내지 않기 위해 호출한 쪽에서 멈춘다."""
+
+
+def _key():
+    return (os.environ.get("ANTHROPIC_API_KEY") or "").strip()
+
+
+def _ask(content, max_tokens=300):
+    """Claude에게 묻고 JSON 을 받는다. 호출이 안 되면 Unavailable."""
+    try:
+        r = requests.post(
+            "https://api.anthropic.com/v1/messages",
+            headers={"x-api-key": _key(), "anthropic-version": "2023-06-01", "content-type": "application/json"},
+            json={"model": os.environ.get("QC_MODEL") or os.environ.get("PLANNER_MODEL") or "claude-haiku-5-5",
+                  "max_tokens": max_tokens, "messages": [{"role": "user", "content": content}]},
+            timeout=120,
+        )
+    except requests.RequestException as e:
+        raise Unavailable(f"Claude API 연결 실패: {e}")
+    if r.status_code == 401:
+        raise Unavailable("Claude API 키가 거절됐습니다(401). ANTHROPIC_API_KEY Secret 값을 다시 확인하세요.")
+    if r.status_code >= 400:
+        raise Unavailable(f"Claude API 오류 {r.status_code}: {r.text[:200]}")
+    text = r.json()["content"][0]["text"]
+    try:
+        return json.loads(text[text.index("{"): text.rindex("}") + 1])
+    except ValueError:
+        raise Unavailable(f"Claude 응답을 읽을 수 없음: {text[:120]}")
+
+
+def api_check():
+    """실행을 시작하기 전에 키가 실제로 동작하는지 확인한다."""
+    if not _key():
+        raise Unavailable("ANTHROPIC_API_KEY Secret 이 비어 있습니다.")
+    _ask([{"type": "text", "text": 'JSON만 출력: {"ok": true}'}], max_tokens=20)
+
+
+def _img(data, media="image/jpeg"):
+    return {"type": "image", "source": {"type": "base64", "media_type": media, "data": base64.b64encode(data).decode()}}
+
+
+def check_frame(png, about, scene_desc, must_show):
+    """찍기 전 화면 확인. 이 화면에서 바로 녹화를 시작해도 되는지 판단한다."""
+    prompt = f"""게임·사이트를 자동으로 녹화하려고 합니다. 지금 화면에서 바로 녹화를 시작해도 되는지 봐 주세요.
+
+제품: {about}
+찍으려는 장면: {scene_desc}
+이 화면에 반드시 보여야 하는 것: {must_show}
+
+위 조건이 화면에 실제로 보일 때만 합격입니다. 하늘·땅·벽만 보이거나, 메뉴·로딩·결과·오류 화면이면 불합격입니다.
+JSON만 출력: {{"ok": true 또는 false, "reason": "화면에 무엇이 보이는지 한 문장"}}"""
+    d = _ask([_img(png, "image/png"), {"type": "text", "text": prompt}])
+    return bool(d.get("ok")), str(d.get("reason", ""))
+
+
+def grab_frames(video, work, fracs, start=0.0, dur=None, width=432):
+    _, _, total = probe(video)
+    dur = dur or max(0.5, total - start)
+    out = []
+    for i, frac in enumerate(fracs):
+        f = pathlib.Path(work) / f"frame_{i}.jpg"
+        subprocess.run(["ffmpeg", "-y", "-v", "error", "-ss", str(start + dur * frac), "-i", str(video), "-frames:v", "1",
+                        "-vf", f"scale={width}:-2", "-q:v", "4", str(f)], check=True)
+        out.append(f.read_bytes())
+    return out
+
+
 def check_content(video, spec, work):
-    """완성본 내용 검사. 키가 없거나 호출이 실패하면 (None, 이유) — 화면 검사 결과만으로 보낸다."""
-    key = os.environ.get("ANTHROPIC_API_KEY")
-    if not key:
-        return None, "API 키 없음"
-    _, _, dur = probe(video)
-    images = []
-    for i, frac in enumerate((0.15, 0.5, 0.85)):
-        out = pathlib.Path(work) / f"qc_{i}.jpg"
-        subprocess.run(["ffmpeg", "-y", "-v", "error", "-ss", str(dur * frac), "-i", str(video), "-frames:v", "1",
-                        "-vf", "scale=432:-2", "-q:v", "4", str(out)], check=True)
-        images.append({"type": "image", "source": {"type": "base64", "media_type": "image/jpeg",
-                                                   "data": base64.b64encode(out.read_bytes()).decode()}})
-    prompt = f"""숏폼 영상에서 뽑은 장면 3장(앞·중간·뒤)입니다. 올려도 되는지 검수해 주세요.
+    """완성본 검수. (통과, 이유). 호출이 안 되면 Unavailable — 검수 못 한 영상은 보내지 않는다."""
+    images = [_img(b) for b in grab_frames(video, work, (0.08, 0.3, 0.55, 0.8, 0.95))]
+    prompt = f"""숏폼 영상에서 뽑은 장면 5장(시간 순서)입니다. 올려도 되는지 엄격하게 검수해 주세요.
 
 제품: {spec['about']}
-나와야 하는 화면: {spec['scene_desc']}
+찍으려던 장면: {spec['scene_desc']}
+화면에 반드시 보여야 하는 것: {spec.get('must_show') or '실제 플레이·사용 화면'}
 화면 위 자막(훅): {spec['hook']}
 화면 아래 자막: {spec['cta']}
 
 아래 중 하나라도 해당하면 불합격입니다.
-- 3장 중 2장 이상이 실제 플레이·사용 화면이 아니라 메뉴·소개 페이지·로딩·오류·결과 화면이다
+- '반드시 보여야 하는 것'이 5장 중 3장 이상에서 보이지 않는다 (하늘·땅만 보임, 적이 없음, 캐릭터가 안 보임 등)
+- 5장 중 2장 이상이 메뉴·소개 페이지·로딩·오류·결과 화면이다
+- 훅이 말하는 내용이 화면에 실제로 보이지 않는다 (싸운다고 했는데 적이 없음, 다른 장소 이야기 등)
 - 자막이 잘리거나, 글자가 깨지거나, 배경에 묻혀 읽기 어렵다
-- 훅이 화면에 보이는 내용과 분명히 어긋난다 (다른 게임·다른 장면 이야기)
-- 훅이나 자막에 확인할 수 없는 수치·순위·수상 같은 과장이 있다
+- 확인할 수 없는 수치·순위·수상 같은 과장이 있다
 
-사소한 흠은 합격으로 둡니다. JSON만 출력: {{"ok": true 또는 false, "reason": "한 문장"}}"""
-    try:
-        r = requests.post(
-            "https://api.anthropic.com/v1/messages",
-            headers={"x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json"},
-            json={"model": os.environ.get("QC_MODEL") or os.environ.get("PLANNER_MODEL") or "claude-haiku-5-5",
-                  "max_tokens": 300, "messages": [{"role": "user", "content": images + [{"type": "text", "text": prompt}]}]},
-            timeout=120,
-        )
-        r.raise_for_status()
-        text = r.json()["content"][0]["text"]
-        data = json.loads(text[text.index("{"): text.rindex("}") + 1])
-        return bool(data["ok"]), str(data.get("reason", ""))
-    except Exception as e:
-        return None, f"내용 검사 호출 실패: {e}"
+JSON만 출력: {{"ok": true 또는 false, "reason": "한 문장"}}"""
+    d = _ask(images + [{"type": "text", "text": prompt}])
+    return bool(d.get("ok")), str(d.get("reason", ""))

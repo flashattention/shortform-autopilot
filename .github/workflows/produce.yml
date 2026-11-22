@@ -1,7 +1,9 @@
 name: 영상 만들기
 on:
   schedule:
-    - cron: "17 21 * * *"   # 매일 06:17 KST
+    - cron: "17 21 * * *"   # 06:17 KST
+    - cron: "17 3 * * *"    # 12:17 KST
+    - cron: "17 9 * * *"    # 18:17 KST
   workflow_dispatch:
     inputs:
       product:

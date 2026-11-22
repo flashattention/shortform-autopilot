@@ -25,6 +25,10 @@ products:
       en: [indiegame, gamedev, indiedev, endlessrunner, webgame]
     capture:
       trim_start: 3            # 시작 카운트다운
+      must_show: "곰돌이 캐릭터가 발판이나 길 위를 달리고 있는 플레이 화면"
+      adjust:                  # 찍기 전 화면 확인에서 떨어지면 하는 동작
+        - {do: click, sel: "#again-btn", if_visible: true, ms: 400}
+        - {do: wait, ms: 1500}
       # 봇 플레이가 운영 서버에 계정·기록·판수 통계를 남기지 않게 막는 요청
       block: ["**/api/login", "**/api/dream/run", "**/api/dream/score", "**/api/dream/played"]
       recipe:
@@ -78,6 +82,10 @@ products:
       en: [seoul, indiegame, cozygames, gamedev, walkingsim]
     capture:
       trim_start: 1
+      must_show: "곰돌이 캐릭터와 서울의 거리·건물·한강 같은 풍경이 함께 보이는 화면"
+      adjust:
+        - {do: hold_key, key: d, ms: 500}
+        - {do: hold_key, key: w, ms: 1500}
       block: ["**/api/login", "**/api/dream/hangang/**", "**/api/sw/**"]      # 봇이 걸은 기록·지표를 남기지 않게
       setup:
         - {do: wait, ms: 12000}   # 지도 불러오기
@@ -116,29 +124,33 @@ products:
       ko: [카피좀비, 카피바라, 인디게임, 1인개발, 좀비게임]
       en: [capybara, indiegame, gamedev, zombiegame, indiedev]
     capture:
+      url: "https://capyzombie.vercel.app/play.html?diff=easy#play"   # 선택창을 건너뛰고 바로 시작. 봇이 오래 버티게 이지 난이도
       i18n: true               # 브라우저 언어를 따라가는 사이트: 한국어·영어 화면을 따로 찍는다
-      trim_start: 1
+      touch: true              # 터치 조작으로 플레이. 쏘는 동안 가까운 좀비 쪽으로 조준을 끌어 주는 보조가 켜진다
+      trim_start: 0
       block: ["**/api/scores**"]   # 봇 점수가 전체 랭킹에 올라가지 않게
+      must_show: "좀비(적)가 화면에 또렷하게 보이고, 조준선이 하늘이 아니라 좀비가 있는 지면 쪽을 향한 화면"
       setup:
-        - {do: click, sel: "#dice", ms: 500}    # 닉네임 추천
-        - {do: click, sel: "#go", ms: 3000}     # 출발!
+        - {do: wait, ms: 4000}
+      prepare:                 # 녹화 전: 좀비가 다가오길 기다렸다가, 쏘면서 천천히 돌아 조준 보조가 좀비를 잡게 한다
+        - {do: wait, ms: 5000}
+        - {do: touch_hold, ms: 3000, touches: [{from: [0.82, 0.5], to: [0.645, 0.5]}]}
+      adjust:                  # 화면 확인에서 떨어지면: 다시 천천히 돌며 좀비를 찾는다 (빨리 돌면 조준 보조가 못 잡는다)
+        - {do: click, sel: "#retry", if_visible: true, ms: 1500}
+        - {do: touch_hold, ms: 3000, touches: [{from: [0.82, 0.5], to: [0.645, 0.5]}]}
       scenes:
-        - id: farm-push
-          desc: {ko: "유자 농장에서 앞으로 나아가며 게틀링을 쏘는 화면", en: "pushing forward and firing the gatling on the farm map"}
+        - id: farm-retreat
+          desc: {ko: "유자 농장에서 뒤로 물러나며 다가오는 좀비 떼에 게틀링을 쏘는 화면", en: "backing away while firing the gatling at zombies closing in on the farm map"}
           recipe:
-            - {do: click, sel: "#retry", if_visible: true, ms: 800}
-            - {do: hold_key, key: w, ms: 700}
-            - {do: hold_mouse, ms: 1800, sweep: 0.15}
-            - {do: hold_key, key: d, ms: 400}
-        - id: farm-skills
-          desc: {ko: "유자 농장에서 버티며 발 구르기와 미끼 귤 스킬을 쓰는 화면", en: "holding ground on the farm map using the stomp and decoy skills"}
+            - {do: click, sel: "#retry", if_visible: true, ms: 1500}
+            - {do: key, key: Digit1, ms: 100}      # 레벨업 카드가 뜨면 첫 번째를 고른다
+            - {do: touch_hold, ms: 2500, touches: [{from: [0.25, 0.7], to: [0.25, 0.8]}, {from: [0.82, 0.5], to: [0.675, 0.5]}]}
+        - id: farm-strafe
+          desc: {ko: "유자 농장에서 옆으로 움직이며 좀비 떼에 게틀링을 쏘는 화면", en: "strafing sideways while firing the gatling at zombies on the farm map"}
           recipe:
-            - {do: click, sel: "#retry", if_visible: true, ms: 800}
-            - {do: hold_mouse, ms: 1500, sweep: 0.2}
-            - {do: key, key: q, ms: 400}
-            - {do: hold_key, key: a, ms: 500}
-            - {do: hold_mouse, ms: 1200, sweep: 0.2}
-            - {do: key, key: e, ms: 400}
+            - {do: click, sel: "#retry", if_visible: true, ms: 1500}
+            - {do: key, key: Digit1, ms: 100}
+            - {do: touch_hold, ms: 2500, touches: [{from: [0.25, 0.7], to: [0.33, 0.76]}, {from: [0.82, 0.5], to: [0.675, 0.5]}]}
 
   mouse-father:
     name: {ko: 쥐 가장, en: "Mouse Father (working title)"}
@@ -174,6 +186,7 @@ products:
       i18n: true
       trim_start: 0
       min_moving: 0.25         # 글이 많은 사이트라 화면 변화가 적다. 검수 기준을 낮춤
+      must_show: "개념 제목과 그 개념의 3D 그림이 함께 보이는 화면"
       setup:
         - {do: wait, ms: 2500}
       recipe:                  # 위쪽 3D 그림을 돌려 보고, 설명을 잠깐 내렸다가 돌아온다
