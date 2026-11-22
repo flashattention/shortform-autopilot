@@ -12,7 +12,7 @@ import pathlib
 from . import edit, plan, qc
 from .common import ROOT, load_yaml
 
-SAMPLES = {"dream-runner": "dream", "capyzombie": "farm-retreat", "mouse-father": "forage"}
+SAMPLES = {"dream-runner": "dream", "capyzombie": "farm", "mouse-father": "forage"}
 
 
 def main():
