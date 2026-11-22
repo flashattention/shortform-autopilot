@@ -147,7 +147,7 @@ def capture(url, recipe, seconds, out_path, seed=0, setup=None, block=None, rout
             ctx.add_init_script("(() => { try { const d = %s; for (const k in d) localStorage.setItem(k, d[k]); } catch (e) {} })()"
                                 % _json.dumps(storage))
         page = ctx.new_page()
-        page.set_default_timeout(180000)   # 무거운 3D 장면은 한 장 찍는 데도 오래 걸린다
+        page.set_default_timeout(600000)   # 무거운 3D 장면은 GitHub 서버에서 한 장에 7초 넘게 걸린다. 넉넉히 10분
         page.cdp = ctx.new_cdp_session(page)
         for pat in block or []:
             page.route(pat, lambda route: route.abort())
