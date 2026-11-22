@@ -6,7 +6,7 @@ import datetime
 import json
 import random
 
-from .common import CLIPS, load_state, load_yaml
+from .common import CLIPS, load_history, load_state, load_yaml
 
 VIDEO_EXT = {".mp4", ".mov", ".webm", ".mkv"}
 SPECIAL = ("before_", "after_", "bug_")
@@ -142,7 +142,7 @@ def write_copy(spec, frames, used, use_claude, rng):
     Claude 가 문구를 못 쓰면 products.yaml 의 기본 문구로 대신한다 (영상은 그대로 보낸다)."""
     from . import qc
     cfg, formats = load_yaml("products.yaml"), load_yaml("formats.yaml")
-    history, metrics = load_state("history.json", []), load_state("metrics.json", {})
+    history, metrics = load_history(), load_state("metrics.json", {})
     pid, product, fmt = spec["product"], cfg["products"][spec["product"]], formats[spec["format"]]
     copies = None
     if use_claude:
@@ -166,7 +166,7 @@ def write_copy(spec, frames, used, use_claude, rng):
 
 def make_specs(seed=None, only_product=None):
     cfg, formats = load_yaml("products.yaml"), load_yaml("formats.yaml")
-    history = load_state("history.json", [])
+    history = load_history()
     scores = format_scores(load_state("metrics.json", {}))
     rng = random.Random(seed)
     today = datetime.datetime.now().strftime("%Y%m%d-%H%M")

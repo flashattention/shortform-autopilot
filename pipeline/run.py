@@ -6,11 +6,12 @@
 import argparse
 import datetime
 import json
+import pathlib
 import sys
 import traceback
 
 from . import edit, plan
-from .common import OUT, load_state, load_yaml, save_state
+from .common import OUT, load_history, load_state, load_yaml, save_state
 
 
 def _footage(spec, need, pc, work, seed, cache, strict):
@@ -39,7 +40,8 @@ def _footage(spec, need, pc, work, seed, cache, strict):
                 raw = capture.capture(src["url"], src.get("recipe"), need[key] + trim + 2, work / f"raw_{attempt}.mp4",
                                       seed=(seed or 0) + attempt, setup=src.get("setup"), block=pc.get("block"),
                                       locale=src.get("locale"), touch=pc.get("touch"), prepare=pc.get("prepare"),
-                                      preflight=pre, adjust=pc.get("adjust"))
+                                      preflight=pre, adjust=pc.get("adjust"),
+                                      fps=pc.get("fps"), storage=pc.get("storage"))
             except qc.Unavailable:
                 raise
             except capture.Rejected as e:
@@ -73,7 +75,8 @@ def produce(args):
             sys.exit(1)
     cfg = load_yaml("products.yaml")
     specs = plan.make_specs(seed=args.seed, only_product=args.product)
-    history = load_state("history.json", [])
+    hist_name = f"history-{args.product}.json" if args.product else "history.json"
+    history = load_state(hist_name, [])
     need = {}
     for s in specs:  # 같은 원본을 쓰는 영상 중 가장 긴 길이만큼 찍는다
         k = s["source"].get("key")
@@ -100,15 +103,20 @@ def produce(args):
                 versions.append((ver, video))
                 print(f"[produce] 완성: {ver['id']} — {ver['hook']}")
             if not args.no_queue:
-                for ver, video in versions:
-                    ver["url"] = review.upload(ver, video)
+                for ver, video in versions:   # 메일에 못 붙이는 큰 영상만 올려 두고 링크를 건다
+                    ver["url"] = None
+                    if pathlib.Path(video).stat().st_size > mailer.MAX_ATTACH:
+                        try:
+                            ver["url"] = review.upload(ver, video)
+                        except Exception as e:
+                            print(f"[produce] 큰 영상 올리기 실패: {e}")
                 ok_mail = mailer.send_versions(spec, versions)
                 for ver, _ in versions:
                     entry = {k: ver[k] for k in ("id", "product", "format", "account", "lang", "scene", "hook", "clip")}
                     entry.update(status="sent" if ok_mail else "made", url=ver["url"],
                                  created=datetime.date.today().isoformat())
                     history.append(entry)
-                save_state("history.json", history)  # 중간에 끊겨도 보낸 것까지는 남게
+                save_state(hist_name, history)  # 중간에 끊겨도 보낸 것까지는 남게
             sent.extend(ver for ver, _ in versions)
         except qc.Unavailable as e:   # 찍기 전 화면 확인을 할 수 없으면 그 장면은 만들지 않는다
             print(f"[produce] 제외 {spec['id']}: 화면 확인 불가 — {e}")
@@ -119,7 +127,7 @@ def produce(args):
     print(f"[produce] 보냄 {len(sent)} · 제외 {len(failed)}")
     for spec, why in failed:
         print(f"  제외 {spec['id']}: {why}")
-    if not args.no_queue:
+    if not args.no_queue and failed:   # 빠진 영상이 있을 때만 요약 메일
         try:
             mailer.send_summary(sent, failed)
         except Exception:
@@ -130,7 +138,7 @@ def produce(args):
 
 def record(args):
     """직접 올린 영상의 조회수를 적어 둡니다. 다음 기획에서 잘된 포맷을 더 자주 고릅니다."""
-    history = load_state("history.json", [])
+    history = load_history()
     h = next((x for x in history if x["id"] == args.id), None)
     if not h:
         sys.exit(f"영상 ID를 찾을 수 없습니다: {args.id}")

@@ -23,3 +23,18 @@ def upload(spec, video_path):
     run(["gh", "release", "upload", TAG, str(named), "--clobber"])
     shutil.rmtree(named.parent, ignore_errors=True)
     return asset_url(spec["id"])
+
+
+def prune(days=3):
+    """보관함에서 며칠 지난 영상을 지운다 (릴리스 하나에 파일 1000개 한도)."""
+    import datetime
+    import json
+    try:
+        rel = json.loads(run(["gh", "api", f"repos/{os.environ['GITHUB_REPOSITORY']}/releases/tags/{TAG}"]).stdout)
+    except Exception:
+        return
+    cut = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=days)
+    for a in rel.get("assets", []):
+        made = datetime.datetime.fromisoformat(a["created_at"].replace("Z", "+00:00"))
+        if made < cut:
+            run(["gh", "api", "-X", "DELETE", f"repos/{os.environ['GITHUB_REPOSITORY']}/releases/assets/{a['id']}"])

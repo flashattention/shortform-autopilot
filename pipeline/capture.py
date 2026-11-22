@@ -27,6 +27,15 @@ def _step(page, s, rng, wait):
     do = s["do"]
     if do == "wait":
         wait(s.get("ms", 500))
+    elif do == "wait_for":  # 버튼이 눌릴 수 있게 될 때까지 실시간으로 기다린다 (캐릭터 불러오기 등)
+        import time
+        end = time.time() + s.get("timeout_ms", 180000) / 1000
+        js = "(sel) => { const el = document.querySelector(sel); return !!el && !el.disabled; }"
+        while not page.evaluate(js, s["sel"]):   # 페이지 안 타이머는 가짜 시계라 파이썬 쪽에서 확인한다
+            if time.time() > end:
+                raise TimeoutError(f"{s['sel']} 이(가) 준비되지 않음")
+            time.sleep(1)
+        wait(s.get("ms", 300))
     elif do == "click":  # CSS 선택자로 버튼 누르기. if_visible 이면 화면에 보일 때만 누른다
         hit = page.evaluate("([sel, vis]) => { const el = document.querySelector(sel);"
                             " if (!el || (vis && !el.getClientRects().length)) return false; el.click(); return true; }",
@@ -106,7 +115,7 @@ class Rejected(Exception):
 
 
 def capture(url, recipe, seconds, out_path, seed=0, setup=None, block=None, routes=None, locale=None,
-            touch=False, preflight=None, adjust=None, prepare=None):
+            touch=False, preflight=None, adjust=None, prepare=None, fps=None, storage=None):
     """url 을 seconds 초(게임 시간) 동안 녹화해 out_path(.mp4)에 저장.
 
     setup: 녹화 전에 실시간으로 실행할 동작(시작 버튼 누르기 등)
@@ -114,6 +123,8 @@ def capture(url, recipe, seconds, out_path, seed=0, setup=None, block=None, rout
                떨어지면 adjust 동작으로 화면을 바꿔 다시 확인하고, 끝내 안 되면 Rejected 를 던진다
     block: 막을 요청 주소 패턴 목록. 봇 플레이가 운영 서버에 기록·통계를 남기지 않게 한다
     """
+    global FPS
+    FPS = int(fps or 30)   # 아주 무거운 3D 게임은 초당 장면 수를 낮춰 녹화 시간을 줄인다
     rng = random.Random(seed)
     out_path = pathlib.Path(out_path)
     frames = pathlib.Path(tempfile.mkdtemp())
@@ -130,6 +141,10 @@ def capture(url, recipe, seconds, out_path, seed=0, setup=None, block=None, rout
             user_agent="Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 "
                        "(KHTML, like Gecko) Chrome/130.0 Mobile Safari/537.36",
         )
+        if storage:  # 사이트 설정 미리 넣기 (화질 등)
+            import json as _json
+            ctx.add_init_script("(() => { try { const d = %s; for (const k in d) localStorage.setItem(k, d[k]); } catch (e) {} })()"
+                                % _json.dumps(storage))
         page = ctx.new_page()
         page.set_default_timeout(180000)   # 무거운 3D 장면은 한 장 찍는 데도 오래 걸린다
         page.cdp = ctx.new_cdp_session(page)

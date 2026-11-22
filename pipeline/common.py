@@ -24,6 +24,14 @@ def save_state(name, data):
     (STATE / name).write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
+def load_history():
+    """모든 기록을 합쳐 읽는다. 제품별로 동시에 돌 때 서로 덮어쓰지 않게 기록 파일을 제품마다 나눠 둔다."""
+    out = list(load_state("history.json", []))
+    for p in sorted(STATE.glob("history-*.json")):
+        out += json.loads(p.read_text(encoding="utf-8"))
+    return out
+
+
 def run(cmd, **kw):
     return subprocess.run(cmd, check=True, capture_output=True, text=True, **kw)
 

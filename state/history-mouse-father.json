@@ -1,0 +1,80 @@
+[
+  {
+    "id": "20261122-1111-mouse-father-sword-roll-ko-v1",
+    "product": "mouse-father",
+    "format": "kr_relatable",
+    "account": "kr",
+    "lang": "ko",
+    "scene": "sword-roll",
+    "hook": "대역 훅 1",
+    "clip": null,
+    "status": "sent",
+    "url": null,
+    "created": "2026-11-22"
+  },
+  {
+    "id": "20261122-1111-mouse-father-sword-roll-ko-v2",
+    "product": "mouse-father",
+    "format": "kr_relatable",
+    "account": "kr",
+    "lang": "ko",
+    "scene": "sword-roll",
+    "hook": "대역 훅 2",
+    "clip": null,
+    "status": "sent",
+    "url": null,
+    "created": "2026-11-22"
+  },
+  {
+    "id": "20261122-1111-mouse-father-sword-roll-ko-v3",
+    "product": "mouse-father",
+    "format": "kr_relatable",
+    "account": "kr",
+    "lang": "ko",
+    "scene": "sword-roll",
+    "hook": "대역 훅 3",
+    "clip": null,
+    "status": "sent",
+    "url": null,
+    "created": "2026-11-22"
+  },
+  {
+    "id": "20261122-1111-mouse-father-sword-roll-en-v1",
+    "product": "mouse-father",
+    "format": "question_hook",
+    "account": "global",
+    "lang": "en",
+    "scene": "sword-roll",
+    "hook": "stand-in hook 1",
+    "clip": null,
+    "status": "sent",
+    "url": null,
+    "created": "2026-11-22"
+  },
+  {
+    "id": "20261122-1111-mouse-father-sword-roll-en-v2",
+    "product": "mouse-father",
+    "format": "question_hook",
+    "account": "global",
+    "lang": "en",
+    "scene": "sword-roll",
+    "hook": "stand-in hook 2",
+    "clip": null,
+    "status": "sent",
+    "url": null,
+    "created": "2026-11-22"
+  },
+  {
+    "id": "20261122-1111-mouse-father-sword-roll-en-v3",
+    "product": "mouse-father",
+    "format": "question_hook",
+    "account": "global",
+    "lang": "en",
+    "scene": "sword-roll",
+    "hook": "stand-in hook 3",
+    "clip": null,
+    "status": "sent",
+    "url": null,
+    "created": "2026-11-22"
+  }
+]
